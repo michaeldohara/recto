@@ -1,0 +1,18 @@
+# Default: treat files as text, normalize to LF in the repo,
+# checkout LF on all platforms. Tauri/Rust ecosystem convention.
+* text=auto eol=lf
+
+# Explicit binaries (don't touch)
+*.png  binary
+*.ico  binary
+*.icns binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+
+# Windows scripts need CRLF or they break under cmd.exe
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

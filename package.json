@@ -1,0 +1,32 @@
+{
+  "name": "recto",
+  "version": "0.1.0",
+  "description": "Fast, viewer-first Markdown reader for Windows. Three rendering modes, clean PDF/HTML export.",
+  "author": "Michael O'Hara <31449199+michaeldohara@users.noreply.github.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michaeldohara/recto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/michaeldohara/recto/issues"
+  },
+  "homepage": "https://github.com/michaeldohara/recto#readme",
+  "keywords": [
+    "markdown",
+    "viewer",
+    "tauri",
+    "rust",
+    "windows"
+  ],
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

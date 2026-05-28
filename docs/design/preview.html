@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recto — Logo Exploration</title>
+<style>
+  :root {
+    --warm-light: #fafaf9;
+    --warm-dark: #1c1917;
+    --warm-mid: #57534e;
+    --accent: #1e3a8a;
+    --border-light: #e7e5e4;
+    --border-dark: #3f3a37;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 48px 64px 96px;
+    font-family: 'Inter', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
+    background: var(--warm-light);
+    color: var(--warm-dark);
+    line-height: 1.55;
+  }
+  header { max-width: 720px; margin-bottom: 56px; }
+  h1 {
+    font-weight: 900; letter-spacing: -0.02em;
+    font-size: 40px; margin: 0 0 12px;
+  }
+  .lede { color: var(--warm-mid); font-size: 16px; margin: 0; }
+  .label {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--warm-mid);
+    margin: 0 0 16px;
+  }
+
+  section { margin-bottom: 64px; }
+  section h2 {
+    font-weight: 800; font-size: 22px; letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+  section .desc {
+    color: var(--warm-mid); font-size: 14px;
+    margin: 0 0 24px; max-width: 640px;
+  }
+
+  /* Direction A — full polish */
+  .a-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .card {
+    border-radius: 16px;
+    padding: 48px;
+    display: flex; align-items: center; justify-content: center; gap: 40px;
+    min-height: 220px;
+  }
+  .card.light { background: var(--warm-light); border: 1px solid var(--border-light); }
+  .card.dark  { background: var(--warm-dark);  border: 1px solid var(--border-dark);  }
+  .card img { display: block; }
+  .icon-img { width: 128px; height: 128px; }
+  .wordmark-img { height: 80px; }
+
+  /* B & C comparison */
+  .compare-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .compare-card {
+    background: var(--warm-light);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 32px 24px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .compare-card img { width: 96px; height: 96px; display: block; }
+  .compare-card .name {
+    font-weight: 700; font-size: 13px; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--warm-mid); margin: 0;
+  }
+  .compare-card .tagline { font-size: 13px; color: var(--warm-mid); margin: 0; text-align: center; line-height: 1.4; }
+
+  /* Design system */
+  .palette { display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap; }
+  .swatch {
+    width: 120px; height: 120px; border-radius: 12px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px;
+    font-family: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+    font-size: 11px;
+  }
+  .swatch.warm-light { background: var(--warm-light); color: var(--warm-dark); border: 1px solid var(--border-light); }
+  .swatch.warm-dark  { background: var(--warm-dark); color: var(--warm-light); }
+  .swatch.accent     { background: var(--accent); color: var(--warm-light); }
+  .swatch.mid        { background: var(--warm-mid); color: var(--warm-light); }
+  .swatch .name { font-weight: 700; opacity: 0.85; }
+  .swatch .hex  { opacity: 0.65; }
+
+  .type-stack { display: grid; grid-template-columns: 180px 1fr; gap: 16px 32px; margin: 16px 0; align-items: baseline; }
+  .type-stack dt {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--warm-mid); margin: 0;
+  }
+  .type-stack dd { margin: 0; font-size: 16px; }
+  .sample-inter   { font-family: 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 18px; }
+  .sample-charter { font-family: 'Charter', 'Georgia', serif; font-size: 18px; }
+  .sample-mono    { font-family: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace; font-size: 16px; }
+
+  hr { border: none; border-top: 1px solid var(--border-light); margin: 56px 0; }
+  .footnote { font-size: 13px; color: var(--warm-mid); margin: 0; }
+  .footnote code { background: var(--border-light); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <p class="label">Recto · Brand Identity</p>
+    <h1>Logo &amp; visual identity</h1>
+    <p class="lede">Three directions for review. Direction&nbsp;A is the recommendation — pure wordmark plus single-letter monogram, no illustration. This is the dev-tool naming norm (Linear, Notion, Arc, Stripe) and the strongest defense against the rectum-adjacency, because the typography-only mark anchors "recto = typography term" before anyone reads the word.</p>
+  </header>
+
+  <section>
+    <h2>Direction A — Pure wordmark + monogram <span style="color: var(--accent); font-size: 14px; font-weight: 600;">[recommended]</span></h2>
+    <p class="desc">Heavy geometric sans (Inter Black; final production would use a licensed typeface or custom letterform). Tight tracking. Square containment, 12% radius — matches Windows 11 system icons without looking cartoon. The R itself is the brand mark; no decoration.</p>
+    <div class="a-row">
+      <div class="card light">
+        <img class="icon-img" src="icon-a-lightbg.svg" alt="App icon, light surface">
+        <img class="wordmark-img" src="wordmark-a-light.svg" alt="Wordmark, dark text">
+      </div>
+      <div class="card dark">
+        <img class="icon-img" src="icon-a-darkbg.svg" alt="App icon, dark surface">
+        <img class="wordmark-img" src="wordmark-a-dark.svg" alt="Wordmark, light text">
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>Comparison — A vs B vs C</h2>
+    <p class="desc">A is the recommendation. B and C are included so you can see the trade. B adds a small folded-page-corner mark to telegraph "document"; C uses an open-book / page-spread glyph (the most literal anchor, but reads more like 2014 consumer-app illustration).</p>
+    <div class="compare-row">
+      <div class="compare-card">
+        <img src="icon-a-darkbg.svg" alt="Direction A icon">
+        <p class="name">A — Wordmark</p>
+        <p class="tagline">Type-driven. Strongest modern-dev-tool signal. Recommended.</p>
+      </div>
+      <div class="compare-card">
+        <img src="icon-b-pagemark.svg" alt="Direction B icon">
+        <p class="name">B — Page mark</p>
+        <p class="tagline">Same R + small folded-corner glyph. Adds a typography anchor; slightly more "startup logo, 2020."</p>
+      </div>
+      <div class="compare-card">
+        <img src="icon-c-spread.svg" alt="Direction C icon">
+        <p class="name">C — Open spread</p>
+        <p class="tagline">Most literal — two pages, right (recto) highlighted. Strongest anchor against rectum association; reads more illustrative.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>Design system</h2>
+    <p class="desc">Monochrome warm grays plus a single deep ink-blue accent. Restrained, document-centric, lets the rendered Markdown be the subject.</p>
+
+    <p class="label">Palette</p>
+    <div class="palette">
+      <div class="swatch warm-light"><span class="name">bg / light</span><span class="hex">#fafaf9</span></div>
+      <div class="swatch warm-dark"><span class="name">bg / dark</span><span class="hex">#1c1917</span></div>
+      <div class="swatch mid"><span class="name">text mid</span><span class="hex">#57534e</span></div>
+      <div class="swatch accent"><span class="name">accent</span><span class="hex">#1e3a8a</span></div>
+    </div>
+
+    <p class="label">Type stack</p>
+    <dl class="type-stack">
+      <dt>UI + rendered body</dt>
+      <dd class="sample-inter">Inter. The view should disappear so the document is the product.</dd>
+      <dt>Memo mode body</dt>
+      <dd class="sample-charter">Charter. The view should disappear so the document is the product.</dd>
+      <dt>Raw mode</dt>
+      <dd class="sample-mono">The view should disappear so the document is the product.</dd>
+    </dl>
+
+    <p class="footnote">Full spec in <code>docs/design/DESIGN.md</code>.</p>
+  </section>
+</body>
+</html>
