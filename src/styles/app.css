@@ -1,6 +1,8 @@
 /* ============================================================
-   Recto — base styles (Phase 1: rendered-mode viewer shell)
-   Design system spec lives in docs/design/DESIGN.md
+   Recto — base app styles (chrome, titlebar, status bar, empty)
+   Per-mode styles live in raw.css and memo.css.
+   Brand colors here are placeholders until designer delivers
+   Spread brand kit; the variable names are the contract.
    ============================================================ */
 
 :root {
@@ -13,6 +15,7 @@
   --error-bg: rgba(185, 28, 28, 0.08);
 
   --font-sans: 'Inter', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Charter', 'Iowan Old Style', 'Iowan', Georgia, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -48,8 +51,10 @@ body {
   user-select: none;
 }
 
-/* Inside the rendered document we DO want selection */
-.markdown-body, .markdown-body * { user-select: text; }
+/* Allow selection inside any rendered document body */
+.markdown-body, .markdown-body *,
+.doc-raw, .doc-raw *,
+.doc-memo, .doc-memo * { user-select: text; }
 
 /* ====== Titlebar ====== */
 .titlebar {
@@ -60,7 +65,7 @@ body {
   height: 36px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  -webkit-app-region: drag; /* allow dragging the window */
+  -webkit-app-region: drag;
 }
 
 .wordmark {
@@ -94,7 +99,6 @@ body {
 .document-area {
   flex: 1;
   overflow-y: auto;
-  padding: 48px 64px;
 }
 
 .empty-state {
@@ -114,7 +118,7 @@ body {
 
 .error-state {
   max-width: 740px;
-  margin: 0 auto;
+  margin: 24px auto;
   padding: 16px 20px;
   border-radius: 8px;
   background: var(--error-bg);
@@ -124,10 +128,11 @@ body {
   line-height: 1.5;
 }
 
-/* Override github-markdown-css container — match our shell */
+/* ====== Rendered mode (github-markdown-css applies via .markdown-body) ====== */
 .markdown-body {
   max-width: 740px;
   margin: 0 auto;
+  padding: 48px 64px;
   background: transparent !important;
   color: var(--text) !important;
   font-family: var(--font-sans) !important;
@@ -145,6 +150,7 @@ body {
   color: var(--text-mid);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  gap: 16px;
 }
 
 .filename {
@@ -152,7 +158,25 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  margin-right: 16px;
+}
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .meta { white-space: nowrap; }
+
+.mode-label {
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: var(--border);
+}

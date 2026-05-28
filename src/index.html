@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Recto</title>
     <link rel="stylesheet" href="./vendor/github-markdown.css" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles/app.css" />
+    <link rel="stylesheet" href="./styles/raw.css" />
+    <link rel="stylesheet" href="./styles/memo.css" />
   </head>
-  <body>
+  <body data-mode="rendered">
     <header class="titlebar" data-tauri-drag-region>
       <span class="wordmark">recto</span>
       <button class="open-btn" id="open-btn" title="Open Markdown file (Ctrl+O)">Open</button>
@@ -21,7 +23,10 @@
 
     <footer class="status-bar">
       <span class="filename" id="filename"></span>
-      <span class="meta" id="meta"></span>
+      <span class="status-right">
+        <span class="meta" id="meta"></span>
+        <span class="mode-label" id="mode-label">Rendered</span>
+      </span>
     </footer>
 
     <!-- markdown-it loads first (UMD, exposes window.markdownit) -->

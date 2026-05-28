@@ -1,0 +1,185 @@
+/* ============================================================
+   Recto — memo mode
+   Serif body, narrow column, letterhead header, print-aware.
+   The "printable document" view — designed to look right
+   coming out of File → Print or PDF export.
+   ============================================================ */
+
+body[data-mode="memo"] .doc-memo {
+  font-family: var(--font-serif);
+  font-size: 11pt;
+  line-height: 1.55;
+  max-width: 720px;       /* ~6.5 inches at 96dpi — letter page minus 1" margins */
+  margin: 0 auto;
+  padding: 56px 32px 96px;
+  color: var(--text);
+}
+
+/* Letterhead header block */
+body[data-mode="memo"] .memo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 40px;
+}
+
+body[data-mode="memo"] .memo-header .memo-doc-title {
+  font-weight: 600;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+
+body[data-mode="memo"] .memo-header .memo-author {
+  color: var(--text-mid);
+}
+
+/* Typography */
+body[data-mode="memo"] .doc-memo h1,
+body[data-mode="memo"] .doc-memo h2,
+body[data-mode="memo"] .doc-memo h3,
+body[data-mode="memo"] .doc-memo h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+body[data-mode="memo"] .doc-memo h1 { font-size: 22pt; margin: 24pt 0 12pt; }
+body[data-mode="memo"] .doc-memo h2 { font-size: 16pt; margin: 20pt 0 10pt; }
+body[data-mode="memo"] .doc-memo h3 { font-size: 13pt; margin: 16pt 0 8pt; }
+body[data-mode="memo"] .doc-memo h4 { font-size: 11.5pt; margin: 14pt 0 6pt; }
+
+body[data-mode="memo"] .doc-memo p { margin: 0 0 1em; }
+
+body[data-mode="memo"] .doc-memo ul,
+body[data-mode="memo"] .doc-memo ol { margin: 0 0 1em 1.6em; padding: 0; }
+body[data-mode="memo"] .doc-memo li { margin-bottom: 0.3em; }
+
+body[data-mode="memo"] .doc-memo a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+body[data-mode="memo"] .doc-memo blockquote {
+  border-left: 2px solid var(--accent);
+  margin: 1em 0;
+  padding: 0 0 0 16px;
+  color: var(--text-mid);
+  font-style: italic;
+}
+
+body[data-mode="memo"] .doc-memo code {
+  font-family: var(--font-mono);
+  font-size: 9.5pt;
+  padding: 1px 4px;
+  background: var(--border);
+  border-radius: 3px;
+}
+
+body[data-mode="memo"] .doc-memo pre {
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  line-height: 1.5;
+  padding: 12px 16px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+body[data-mode="memo"] .doc-memo pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+body[data-mode="memo"] .doc-memo img {
+  max-width: 100%;
+  display: block;
+  margin: 1.2em auto;
+}
+
+body[data-mode="memo"] .doc-memo hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+body[data-mode="memo"] .doc-memo table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 10pt;
+}
+body[data-mode="memo"] .doc-memo th,
+body[data-mode="memo"] .doc-memo td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+body[data-mode="memo"] .doc-memo th {
+  background: var(--border);
+  font-weight: 600;
+}
+
+/* ====== Print rules — clean PDF output via File → Print ====== */
+@media print {
+  body[data-mode="memo"] {
+    background: white;
+    color: black;
+    overflow: visible;
+    display: block;
+    height: auto;
+  }
+  body[data-mode="memo"] .titlebar,
+  body[data-mode="memo"] .status-bar { display: none; }
+  body[data-mode="memo"] .document-area {
+    overflow: visible;
+    height: auto;
+  }
+  body[data-mode="memo"] .doc-memo {
+    max-width: none;
+    padding: 0;
+  }
+  body[data-mode="memo"] .memo-header {
+    border-color: #999;
+    color: #555;
+  }
+
+  @page {
+    size: letter;
+    margin: 1in;
+  }
+
+  body[data-mode="memo"] .doc-memo h1,
+  body[data-mode="memo"] .doc-memo h2,
+  body[data-mode="memo"] .doc-memo h3,
+  body[data-mode="memo"] .doc-memo h4 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  body[data-mode="memo"] .doc-memo p,
+  body[data-mode="memo"] .doc-memo li,
+  body[data-mode="memo"] .doc-memo blockquote {
+    orphans: 3;
+    widows: 3;
+  }
+  body[data-mode="memo"] .doc-memo pre,
+  body[data-mode="memo"] .doc-memo img,
+  body[data-mode="memo"] .doc-memo table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  body[data-mode="memo"] .doc-memo a {
+    color: black;
+    text-decoration: underline;
+  }
+}
