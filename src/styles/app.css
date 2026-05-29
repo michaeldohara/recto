@@ -275,6 +275,7 @@ html.no-anim .toc, html.no-anim .menu { transition: none !important; animation: 
 .st-file { color: var(--ink-2); }
 .st-sep { opacity: .5; }
 .st-mode { color: var(--ink-2); }
+.st-build { color: var(--ink-3); font-size: 10px; opacity: .75; letter-spacing: 0; }
 
 /* ── Window controls (injected by tauri-plugin-decorum) ──────── */
 /* Decorum injects its own min/max/close buttons in an overlay

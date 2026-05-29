@@ -347,6 +347,19 @@
   // ── Scroll spy ───────────────────────────────────────────────
   content.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
 
+  // ── Build info badge in status bar ───────────────────────────
+  // Always-visible "what commit am I running" badge.
+  (async () => {
+    try {
+      const info = await invoke('get_build_info');
+      const badge = $('#stBuild');
+      badge.textContent = `v${info.version}·${info.sha}`;
+      badge.title = `Recto ${info.version} — commit ${info.sha}`;
+    } catch (e) {
+      console.warn('get_build_info failed:', e);
+    }
+  })();
+
   // ── Boot ─────────────────────────────────────────────────────
   syncMenuModes();
   render(); // shows empty state since STATE.content is ''
