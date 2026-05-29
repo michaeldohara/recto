@@ -57,6 +57,20 @@
           <span class="mi-check" id="tocCheck"></span><span class="mi-label">Show contents</span><span class="mi-kbd">Ctrl \</span>
         </button>
       </div>
+
+      <!-- Custom window controls (decorations: false in tauri.conf.json) -->
+      <div class="win-controls">
+        <button class="wc-btn wc-min" id="winMin" aria-label="Minimize" title="Minimize">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.25 H9.5" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="square"/></svg>
+        </button>
+        <button class="wc-btn wc-max" id="winMax" aria-label="Maximize" title="Maximize">
+          <svg viewBox="0 0 12 12" aria-hidden="true" class="ico-max"><rect x="2.5" y="2.5" width="7" height="7" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+          <svg viewBox="0 0 12 12" aria-hidden="true" class="ico-restore" hidden><rect x="2.5" y="3.5" width="6" height="6" stroke="currentColor" stroke-width="1" fill="none"/><path d="M3.5 3.5 L3.5 2.5 L9.5 2.5 L9.5 8.5 L8.5 8.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+        </button>
+        <button class="wc-btn wc-close" id="winClose" aria-label="Close" title="Close">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="square"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 

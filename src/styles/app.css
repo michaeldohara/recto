@@ -275,3 +275,28 @@ html.no-anim .toc, html.no-anim .menu { transition: none !important; animation: 
 .st-file { color: var(--ink-2); }
 .st-sep { opacity: .5; }
 .st-mode { color: var(--ink-2); }
+
+/* ── Custom window controls (decorations: false) ─────────────── */
+/* Sit at the far right of the title bar, fill its full height.
+   46px wide each — Windows 11 convention. -webkit-app-region: no-drag
+   is inherited from .tb-right; clicks land on the buttons, not drag. */
+.win-controls {
+  display: flex; align-items: stretch; height: 100%;
+  margin-left: 2px;
+}
+.wc-btn {
+  width: 46px; height: 100%;
+  display: grid; place-items: center;
+  background: transparent; color: var(--ink-2);
+  border-radius: 0;
+  transition: background .08s, color .08s;
+}
+.wc-btn svg { width: 12px; height: 12px; opacity: .8; }
+.wc-btn:hover { color: var(--ink); }
+.wc-min:hover, .wc-max:hover { background: rgba(var(--shadow), 0.08); }
+.wc-close:hover { background: #E81123; color: #fff; }
+.wc-close:active { background: #C42B1C; }
+.wc-close:hover svg { opacity: 1; }
+/* Push controls flush to the right edge of the titlebar by overriding
+   the parent's padding on the right side */
+.titlebar { padding-right: 0; }

@@ -15,7 +15,8 @@
         "height": 720,
         "minWidth": 560,
         "minHeight": 420,
-        "backgroundColor": "#F6F0E3"
+        "backgroundColor": "#F6F0E3",
+        "decorations": false
       }
     ],
     "security": {
