@@ -34,6 +34,36 @@ fn get_build_info() -> serde_json::Value {
     })
 }
 
+// Resolve the on-disk path for app state (lastMode, recents, scroll
+// positions). Located in the OS-conventional per-user app data dir.
+fn state_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app_data_dir: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create dir: {e}"))?;
+    Ok(dir.join("state.json"))
+}
+
+// Load the persisted app state. Returns an empty object on first run.
+#[tauri::command]
+fn load_app_state(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let path = state_file(&app)?;
+    if !path.exists() {
+        return Ok(serde_json::json!({}));
+    }
+    let s = std::fs::read_to_string(&path).map_err(|e| format!("read: {e}"))?;
+    serde_json::from_str(&s).map_err(|e| format!("parse: {e}"))
+}
+
+// Persist the app state. Whole-blob writes; tiny state, atomic enough.
+#[tauri::command]
+fn save_app_state(app: tauri::AppHandle, state: serde_json::Value) -> Result<(), String> {
+    let path = state_file(&app)?;
+    let s = serde_json::to_string_pretty(&state).map_err(|e| format!("serialize: {e}"))?;
+    std::fs::write(&path, s).map_err(|e| format!("write: {e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -50,7 +80,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_markdown_file,
             open_file_dialog,
-            get_build_info
+            get_build_info,
+            load_app_state,
+            save_app_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

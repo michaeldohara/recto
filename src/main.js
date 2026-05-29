@@ -41,6 +41,13 @@
     mode: 'rendered',  // 'raw' | 'rendered' | 'memo'
   };
 
+  // Persisted across launches (Rust: load_app_state / save_app_state)
+  const appState = {
+    lastMode: 'rendered',
+    recents: [],             // [paths] most-recent-first, dedup, max 10
+    scrollPositions: {},     // { path: 0..1 }
+  };
+
   root.classList.add('no-anim'); // suppress transitions on initial paint
 
   // ── DOM refs ─────────────────────────────────────────────────
@@ -77,10 +84,36 @@
     return String(s).replace(/[&<>]/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   }
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  }
   function slug(t) {
     return t.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
   }
   function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // ── Persistent state (lastMode, recents, scroll positions) ───
+  async function loadState() {
+    try {
+      const s = await invoke('load_app_state');
+      if (s && typeof s === 'object') {
+        if (['raw', 'rendered', 'memo'].includes(s.lastMode)) appState.lastMode = s.lastMode;
+        if (Array.isArray(s.recents)) appState.recents = s.recents.filter((p) => typeof p === 'string').slice(0, 10);
+        if (s.scrollPositions && typeof s.scrollPositions === 'object') appState.scrollPositions = s.scrollPositions;
+      }
+    } catch (e) { console.warn('load_app_state failed:', e); }
+  }
+
+  // Throttle saves — we hit save() from scroll/mode/file events; collapse to ~300ms
+  let saveTimer = null;
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      try { await invoke('save_app_state', { state: appState }); }
+      catch (e) { console.warn('save_app_state failed:', e); }
+    }, 300);
+  }
 
   // Rewrite relative image paths through Tauri's asset: protocol so
   // ![alt](images/foo.png) resolves against the loaded file's folder.
@@ -251,6 +284,8 @@
     root.setAttribute('data-mode', m);
     syncMenuModes();
     render();
+    appState.lastMode = m;
+    scheduleSave();
   }
   function syncMenuModes() {
     document.querySelectorAll('.mi[data-mode]').forEach((b) =>
@@ -296,10 +331,22 @@
   }
   async function loadFile(path) {
     try {
-      const content = await invoke('read_markdown_file', { path });
-      STATE.content = content;
+      // Note: local var `text` avoids shadowing the outer `content` DOM ref
+      const text = await invoke('read_markdown_file', { path });
+      STATE.content = text;
       STATE.path = path;
       render();
+      // Bump to top of recents (dedup, cap at 10)
+      appState.recents = [path, ...appState.recents.filter((p) => p !== path)].slice(0, 10);
+      scheduleSave();
+      // Restore previous reading position (after layout settles)
+      const pct = appState.scrollPositions[path];
+      if (typeof pct === 'number' && pct > 0) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const max = Math.max(0, content.scrollHeight - content.clientHeight);
+          content.scrollTop = pct * max;
+        }));
+      }
     } catch (err) {
       showError(String(err));
     }
@@ -344,25 +391,74 @@
     }
   });
 
-  // ── Scroll spy ───────────────────────────────────────────────
-  content.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
+  // ── Scroll spy + reading-position memory ─────────────────────
+  let scrollSaveTimer = null;
+  content.addEventListener('scroll', () => {
+    requestAnimationFrame(spy);
+    // Save scroll position per file (throttled at 250ms idle)
+    if (!STATE.path) return;
+    if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = setTimeout(() => {
+      scrollSaveTimer = null;
+      const max = Math.max(1, content.scrollHeight - content.clientHeight);
+      appState.scrollPositions[STATE.path] = content.scrollTop / max;
+      scheduleSave();
+    }, 250);
+  }, { passive: true });
 
-  // ── Build info badge in status bar ───────────────────────────
-  // Always-visible "what commit am I running" badge.
-  (async () => {
-    try {
-      const info = await invoke('get_build_info');
+  // ── Recent files (rendered into empty state when present) ────
+  function renderRecents() {
+    // Remove any previous list before rebuilding
+    document.querySelector('.recent-list')?.remove();
+    const recents = (appState.recents || []).slice(0, 5);
+    if (recents.length === 0) return;
+
+    const inner = $('.empty-inner');
+    if (!inner) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'recent-list';
+    wrap.innerHTML =
+      '<div class="recent-header">Recent</div>' +
+      recents.map((p) =>
+        `<button class="recent-item" data-path="${escapeAttr(p)}" title="${escapeAttr(p)}">` +
+          `<span class="recent-name">${escapeHtml(basename(p))}</span>` +
+          `<span class="recent-path">${escapeHtml(dirname(p))}</span>` +
+        `</button>`
+      ).join('');
+
+    inner.insertBefore(wrap, inner.firstChild);
+
+    wrap.querySelectorAll('.recent-item').forEach((btn) =>
+      btn.addEventListener('click', () => loadFile(btn.dataset.path)));
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────
+  (async function boot() {
+    // 1. Load persisted state first so the very first paint is correct
+    await loadState();
+
+    // 2. Apply persisted last mode (before initial render)
+    if (['raw', 'rendered', 'memo'].includes(appState.lastMode)) {
+      STATE.mode = appState.lastMode;
+      root.setAttribute('data-mode', STATE.mode);
+    }
+    syncMenuModes();
+
+    // 3. Initial render — empty state since STATE.content is ''
+    render();
+
+    // 4. Inject recent files list into the empty state if we have any
+    renderRecents();
+
+    // 5. Build-info badge in status bar (non-blocking)
+    invoke('get_build_info').then((info) => {
       const badge = $('#stBuild');
       badge.textContent = `v${info.version}·${info.sha}`;
       badge.title = `Recto ${info.version} — commit ${info.sha}`;
-    } catch (e) {
-      console.warn('get_build_info failed:', e);
-    }
-  })();
+    }).catch((e) => console.warn('get_build_info failed:', e));
 
-  // ── Boot ─────────────────────────────────────────────────────
-  syncMenuModes();
-  render(); // shows empty state since STATE.content is ''
-  // Two rAF ticks ensure styles settle before re-enabling transitions
-  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
+    // 6. Allow transitions on the next paint
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
+  })();
 })();
