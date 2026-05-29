@@ -1,112 +1,158 @@
-.logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #ffe21c);
-}
+/* ============================================================
+   Recto — base styles (Phase 1: rendered-mode viewer shell)
+   Design system spec lives in docs/design/DESIGN.md
+   ============================================================ */
+
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
+  --bg: #fafaf9;
+  --text: #1c1917;
+  --text-mid: #57534e;
+  --accent: #1e3a8a;
+  --border: #e7e5e4;
+  --error: #b91c1c;
+  --error-bg: rgba(185, 28, 28, 0.08);
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
+  --font-sans: 'Inter', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
+    --bg: #1c1917;
+    --text: #fafaf9;
+    --text-mid: #a8a29e;
+    --accent: #3b5fc9;
+    --border: #3f3a37;
+    --error: #fca5a5;
+    --error-bg: rgba(252, 165, 165, 0.08);
   }
 }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* Inside the rendered document we DO want selection */
+.markdown-body, .markdown-body * { user-select: text; }
+
+/* ====== Titlebar ====== */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 36px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  -webkit-app-region: drag; /* allow dragging the window */
+}
+
+.wordmark {
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.open-btn {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.open-btn:hover { background: var(--border); }
+.open-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ====== Document area ====== */
+.document-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 48px 64px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+.empty-hint {
+  color: var(--text-mid);
+  font-size: 15px;
+  text-align: center;
+  line-height: 1.7;
+  margin: 0;
+}
+.empty-hint strong { color: var(--text); font-weight: 600; }
+
+.error-state {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: var(--error-bg);
+  color: var(--error);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Override github-markdown-css container — match our shell */
+.markdown-body {
+  max-width: 740px;
+  margin: 0 auto;
+  background: transparent !important;
+  color: var(--text) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* ====== Status bar ====== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 16px;
+}
+
+.meta { white-space: nowrap; }

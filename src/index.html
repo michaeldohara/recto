@@ -2,38 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Recto</title>
-    <script type="module" src="/main.js" defer></script>
+    <link rel="stylesheet" href="./vendor/github-markdown.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+    <header class="titlebar" data-tauri-drag-region>
+      <span class="wordmark">recto</span>
+      <button class="open-btn" id="open-btn" title="Open Markdown file (Ctrl+O)">Open</button>
+    </header>
 
-      <div class="row">
-        <a href="https://tauri.app" target="_blank">
-          <img src="/assets/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a
-          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
-          target="_blank"
-        >
-          <img
-            src="/assets/javascript.svg"
-            class="logo vanilla"
-            alt="JavaScript logo"
-          />
-        </a>
+    <main class="document-area" id="doc">
+      <div class="empty-state">
+        <p class="empty-hint">Drop a Markdown file here<br />or click <strong>Open</strong></p>
       </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
-
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
     </main>
+
+    <footer class="status-bar">
+      <span class="filename" id="filename"></span>
+      <span class="meta" id="meta"></span>
+    </footer>
+
+    <!-- markdown-it loads first (UMD, exposes window.markdownit) -->
+    <script src="./vendor/markdown-it.min.js"></script>
+    <!-- main app logic, runs after markdown-it is loaded -->
+    <script type="module" src="./main.js"></script>
   </body>
 </html>
