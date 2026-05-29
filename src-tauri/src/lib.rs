@@ -1,4 +1,6 @@
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_decorum::WebviewWindowExt;
 
 // Read a UTF-8 text file from disk and return its contents.
 // Used for loading .md files dropped on the window or chosen via File → Open.
@@ -26,6 +28,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_decorum::init())
+        .setup(|app| {
+            // Decorum injects its own min/max/close buttons into the main
+            // window's titlebar so Win11 Snap Layouts work on hover.
+            let main_window = app.get_webview_window("main").unwrap();
+            main_window.create_overlay_titlebar().unwrap();
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_markdown_file,
             open_file_dialog

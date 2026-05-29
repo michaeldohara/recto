@@ -313,26 +313,8 @@
   $('#btnOpen').addEventListener('click', openFile);
   $('#btnOpenEmpty').addEventListener('click', openFile);
 
-  // ── Window controls (decorations: false; we own min/max/close) ──
-  const tauriWindow = window.__TAURI__.window.getCurrentWindow();
-  const maxIcon = $('.wc-max .ico-max');
-  const restoreIcon = $('.wc-max .ico-restore');
-  async function syncMaxIcon() {
-    try {
-      const maxed = await tauriWindow.isMaximized();
-      maxIcon.hidden = maxed;
-      restoreIcon.hidden = !maxed;
-    } catch {/* ignore */}
-  }
-  $('#winMin').addEventListener('click', () => tauriWindow.minimize());
-  $('#winMax').addEventListener('click', async () => {
-    await tauriWindow.toggleMaximize();
-    syncMaxIcon();
-  });
-  $('#winClose').addEventListener('click', () => tauriWindow.close());
-  // Keep the max/restore icon in sync with window state
-  tauriWindow.onResized(syncMaxIcon);
-  syncMaxIcon();
+  // Window controls (min/max/close) are injected + wired by tauri-plugin-decorum
+  // — handles WM_NCHITTEST so Win11 Snap Layouts pop on maximize-button hover.
 
   // ── Drag-drop (Tauri's onDragDropEvent gives real OS paths) ──
   getCurrentWebview().onDragDropEvent((event) => {

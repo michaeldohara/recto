@@ -276,27 +276,39 @@ html.no-anim .toc, html.no-anim .menu { transition: none !important; animation: 
 .st-sep { opacity: .5; }
 .st-mode { color: var(--ink-2); }
 
-/* ── Custom window controls (decorations: false) ─────────────── */
-/* Sit at the far right of the title bar, fill its full height.
-   46px wide each — Windows 11 convention. -webkit-app-region: no-drag
-   is inherited from .tb-right; clicks land on the buttons, not drag. */
-.win-controls {
-  display: flex; align-items: stretch; height: 100%;
-  margin-left: 2px;
+/* ── Window controls (injected by tauri-plugin-decorum) ──────── */
+/* Decorum injects its own min/max/close buttons in an overlay
+   positioned at the top-right of the window so Win11 Snap Layouts
+   work on maximize-button hover (handled via WM_NCHITTEST).
+   We restyle to match the design — 46px wide, neutral hover,
+   red close hover per Windows convention. */
+
+/* Reserve right-side space in our titlebar so decorum's overlay
+   (~3 × 46px = 138px) doesn't cover our Open + menu buttons. */
+.titlebar { padding-right: 138px; }
+
+[data-tauri-decorum-tb] {
+  height: var(--tb-h);
+  display: flex; align-items: stretch;
+  background: transparent;
 }
-.wc-btn {
+
+button.decorum-tb-btn {
   width: 46px; height: 100%;
   display: grid; place-items: center;
   background: transparent; color: var(--ink-2);
-  border-radius: 0;
+  border: none; border-radius: 0;
   transition: background .08s, color .08s;
 }
-.wc-btn svg { width: 12px; height: 12px; opacity: .8; }
-.wc-btn:hover { color: var(--ink); }
-.wc-min:hover, .wc-max:hover { background: rgba(var(--shadow), 0.08); }
-.wc-close:hover { background: #E81123; color: #fff; }
-.wc-close:active { background: #C42B1C; }
-.wc-close:hover svg { opacity: 1; }
-/* Push controls flush to the right edge of the titlebar by overriding
-   the parent's padding on the right side */
-.titlebar { padding-right: 0; }
+button.decorum-tb-btn svg,
+button.decorum-tb-btn img { width: 12px; height: 12px; opacity: .8; }
+button.decorum-tb-btn:hover { color: var(--ink); }
+button.decorum-tb-btn:hover svg { opacity: 1; }
+button#decorum-tb-minimize:hover,
+button#decorum-tb-maximize:hover {
+  background: rgba(var(--shadow), 0.08);
+}
+button#decorum-tb-close:hover {
+  background: #E81123; color: #fff;
+}
+button#decorum-tb-close:active { background: #C42B1C; }
