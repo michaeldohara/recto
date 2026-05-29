@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>recto — logo directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; height: 100%; background: #e9e6df; }
+  * { box-sizing: border-box; }
+  .card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    font-family: "Hanken Grotesk", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  .hero {
+    flex: 0 0 auto;
+    height: 186px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .hero .grain {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.035) 1px, transparent 0);
+    background-size: 5px 5px;
+    pointer-events: none;
+  }
+  .body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    padding: 26px 30px 22px;
+    gap: 20px;
+  }
+  .lockup {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .wordmark-serif {
+    font-family: "Newsreader", serif;
+    font-weight: 500;
+    font-size: 46px;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .wordmark-mono {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: 38px;
+    letter-spacing: -1.5px;
+    line-height: 1;
+  }
+  .tagline {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-top: 7px;
+  }
+  .divider { height: 1px; width: 100%; }
+  .row-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    margin-bottom: 12px;
+  }
+  .icons { display: flex; align-items: flex-end; gap: 16px; }
+  .tile {
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.10), 0 8px 22px rgba(0,0,0,0.08);
+  }
+  .swatches { display: flex; gap: 0; border-radius: 7px; overflow: hidden; }
+  .swatch { flex: 1; height: 46px; position: relative; }
+  .swatch span {
+    position: absolute; bottom: 5px; left: 6px;
+    font-family: "IBM Plex Mono", monospace; font-size: 8px; letter-spacing: 0.3px;
+  }
+  .footer { margin-top: auto; }
+  .dir-name {
+    font-family: "Newsreader", serif; font-style: italic;
+    font-size: 19px; line-height: 1; margin-bottom: 7px;
+  }
+  .concept { font-size: 12.5px; line-height: 1.45; opacity: 0.72; max-width: 40ch; }
+  .meta { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.5px; opacity: 0.45; margin-top: 11px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="marks.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+// ── Direction data ───────────────────────────────────────────────
+const DIRECTIONS = [
+  {
+    id: "folio", Mark: MarkFolio, dir: "Folio", pal: "Ink & Paper",
+    wm: "serif",
+    paper: "#F5F1E8", ink: "#1A1916", accent: "#8A7E66", faint: "#DBD3C2",
+    concept: "A dog-eared page — the recto you turn to. Warm, monochrome, library-quiet.",
+  },
+  {
+    id: "spread", Mark: MarkSpread, dir: "Spread", pal: "Manuscript",
+    wm: "serif",
+    paper: "#F3ECDD", ink: "#221C15", accent: "#B4542C", faint: "#E2D7C2",
+    concept: "An open book; the right page is solid — recto literally lit. Cream + clay.",
+  },
+  {
+    id: "monogram", Mark: MarkMonogram, dir: "Ligature", pal: "Slate & Cobalt",
+    wm: "serif",
+    paper: "#F2F4F6", ink: "#232A33", accent: "#2D54E8", faint: "#DCE1E7",
+    concept: "A serif ‘r’ set in a ring — the wordmark distilled into a single letter. Cool and sharp.",
+  },
+  {
+    id: "markdown", Mark: MarkMarkdown, dir: "Prompt", pal: "Midnight",
+    wm: "mono", dark: true,
+    paper: "#14161A", ink: "#23272F", accent: "#76A9FF", faint: "#9AA3B0", text: "#EAE7DE",
+    concept: "The ‘>’ — markdown’s blockquote and the prompt to read on. A developer’s dark room.",
+  },
+  {
+    id: "margin", Mark: MarkMargin, dir: "Margin", pal: "Graphite",
+    wm: "serif",
+    paper: "#F4F4F2", ink: "#1C1D1F", accent: "#1C1D1F", faint: "#DEDEDA",
+    concept: "Almost nothing — a steel margin rule beside the word. Maximum restraint.",
+  },
+];
+
+// ── App icon tile ────────────────────────────────────────────────
+function AppIcon({ d, size }) {
+  const rx = Math.round(size * 0.235);
+  const tileBg = d.dark ? "#1B1E24" : d.ink;
+  const light = d.dark ? d.text : d.paper;
+  const ms = Math.round(size * 0.66);
+  let mark;
+  if (d.id === "markdown") {
+    mark = <MarkMarkdown bare ink={d.accent} accent={d.accent} size={ms} />;
+  } else if (d.id === "monogram") {
+    mark = <MarkMonogram ink={light} accent={d.accent} paper={tileBg} size={ms} />;
+  } else {
+    mark = <d.Mark ink={light} accent={d.accent} paper={tileBg} size={ms} />;
+  }
+  return (
+    <div className="tile" style={{ width: size, height: size, borderRadius: rx, background: tileBg }}>
+      {mark}
+    </div>
+  );
+}
+
+// ── Brand card ───────────────────────────────────────────────────
+function BrandCard({ d }) {
+  const text = d.dark ? d.text : d.ink;
+  const sub = d.dark ? d.faint : d.ink;
+  const chips = [
+    { c: d.paper, n: d.paper },
+    { c: d.dark ? d.ink : d.faint, n: d.dark ? d.ink : d.faint },
+    { c: d.dark ? d.text : d.ink, n: d.dark ? d.text : d.ink },
+    { c: d.accent, n: d.accent },
+  ];
+  return (
+    <div className="card" style={{ background: d.paper, color: text }}>
+      <div className="hero" style={{ background: d.dark ? d.paper : "transparent" }}>
+        {!d.dark && <div className="grain"></div>}
+        <d.Mark ink={d.dark ? d.text : d.ink} accent={d.accent} paper={d.paper} size={96} />
+      </div>
+
+      <div className="body">
+        {/* lockup */}
+        <div className="lockup">
+          <AppIcon d={d} size={52} />
+          <div>
+            <div className={d.wm === "mono" ? "wordmark-mono" : "wordmark-serif"} style={{ color: text }}>recto</div>
+            <div className="tagline" style={{ color: d.accent }}>the right page</div>
+          </div>
+        </div>
+
+        <div className="divider" style={{ background: d.dark ? "#2A2E36" : d.faint }}></div>
+
+        {/* app icons */}
+        <div>
+          <div className="row-label" style={{ color: text }}>App icon · Windows</div>
+          <div className="icons">
+            <AppIcon d={d} size={64} />
+            <AppIcon d={d} size={40} />
+            <AppIcon d={d} size={28} />
+          </div>
+        </div>
+
+        {/* palette */}
+        <div>
+          <div className="row-label" style={{ color: text }}>Palette · {d.pal}</div>
+          <div className="swatches" style={{ outline: `1px solid ${d.dark ? "#2A2E36" : d.faint}` }}>
+            {chips.map((s, i) => (
+              <div className="swatch" key={i} style={{ background: s.c }}>
+                <span style={{ color: contrast(s.c) }}>{s.n.toUpperCase()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="footer">
+          <div className="dir-name" style={{ color: text }}>{d.dir}</div>
+          <div className="concept" style={{ color: sub, opacity: d.dark ? 0.82 : 0.72 }}>{d.concept}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// crude luminance for swatch label contrast
+function contrast(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return lum > 0.6 ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.75)";
+}
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="dirs" title="recto — five directions"
+                 subtitle="Editorial serif wordmark · technical/mono accents · the recto = right-hand page concept. Pick a mark + palette; I'll build the reading UI from it.">
+        {DIRECTIONS.map((d, i) => (
+          <DCArtboard key={d.id} id={d.id} label={`${String(i+1).padStart(2,"0")} · ${d.dir} — ${d.pal}`} width={500} height={720}>
+            <BrandCard d={d} />
+          </DCArtboard>
+        ))}
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

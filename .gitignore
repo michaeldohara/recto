@@ -40,3 +40,10 @@ Desktop.ini
 .env.local
 .env.*.local
 secrets.json
+
+# Claude Design browser-save dumps — these embed the user's account
+# UUIDs + work email in <meta> tags and a window.__OMELETTE_ME__
+# JSON block. The real design source belongs in docs/design/source/
+# from the handoff bundle, not from "Save Page As" exports.
+docs/design/recto.html
+docs/design/recto_files/
