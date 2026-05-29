@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-edition="spread" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>recto — application review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="recto-app.css" />
+<style>
+  html, body { height: auto; overflow: auto; background: var(--stage); }
+  body { color: var(--ink); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 56px 30px 120px; }
+
+  /* masthead */
+  .mast { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 22px; border-bottom: 1.5px solid var(--ink); margin-bottom: 44px; }
+  .mast-l { display: flex; align-items: center; gap: 13px; }
+  .mast-mark { width: 30px; height: 30px; display: inline-flex; }
+  .mast-word { font-family: var(--serif); font-weight: 600; font-size: 30px; letter-spacing: -0.4px; line-height: 1; white-space: nowrap; }
+  .mast-t { font-family: var(--serif); font-style: italic; font-size: 17px; color: var(--ink-2); white-space: nowrap; }
+  .mast-r { font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-align: right; line-height: 1.7; letter-spacing: .3px; flex-shrink: 0; }
+
+  /* decisions */
+  .dec { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 26px 30px; margin-bottom: 56px; }
+  .dec-h { font-family: var(--serif); font-weight: 600; font-size: 19px; margin: 0 0 18px; }
+  .dec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
+  .di { padding: 12px 0; border-top: 1px solid var(--line); }
+  .di:nth-child(-n+2) { border-top: none; padding-top: 0; }
+  .di dt { font-size: 12px; font-weight: 700; letter-spacing: .3px; display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+  .di dt .pin { width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+  .di dd { margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+  .mono { font-family: var(--mono); font-size: .92em; color: var(--ink); }
+  .clay { color: var(--accent); font-weight: 600; }
+
+  /* edition section */
+  .edition { margin-top: 64px; }
+  .ed-head { display: flex; align-items: center; gap: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+  .ed-mark { width: 28px; height: 28px; display: inline-flex; flex-shrink: 0; }
+  .ed-name { font-family: var(--serif); font-weight: 600; font-size: 23px; letter-spacing: -0.3px; white-space: nowrap; flex-shrink: 0; }
+  .ed-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #fff; background: var(--accent); padding: 3px 9px; border-radius: 5px; flex-shrink: 0; }
+  .ed-tag.alt { background: var(--ink-3); }
+  .ed-sub { font-size: 13.5px; color: var(--ink-2); margin: 0 0 6px; }
+  .ed-swatches { display: flex; gap: 7px; margin-bottom: 30px; }
+  .sw { width: 24px; height: 24px; border-radius: 5px; border: 1px solid rgba(0,0,0,.08); }
+
+  /* shot */
+  .shot { margin-bottom: 40px; }
+  .cap { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+  .cap .num { font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: 500; }
+  .cap .ttl { font-family: var(--ui); font-size: 14px; font-weight: 600; }
+  .cap .dim { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-left: auto; }
+  .cap .note { font-size: 12px; color: var(--ink-3); }
+  .win-wrap {
+    width: 100%; border-radius: 11px; overflow: hidden;
+    box-shadow: 0 2px 6px rgba(var(--shadow),.10), 0 22px 60px rgba(var(--shadow),.15);
+    border: 1px solid var(--line);
+  }
+  .win-wrap iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--paper); }
+  .h-full { height: 680px; }
+  .h-status { height: 400px; max-width: 760px; }
+
+  @media (max-width: 720px) { .dec-grid { grid-template-columns: 1fr; } .di:nth-child(2) { border-top: 1px solid var(--line); padding-top: 12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- masthead -->
+  <div class="mast">
+    <div class="mast-l">
+      <span class="mast-mark" id="mastMark"></span>
+      <span class="mast-word">recto</span>
+      <span class="mast-t">application review</span>
+    </div>
+    <div class="mast-r">SINGLE-WINDOW MARKDOWN VIEWER<br/>RAW · RENDERED · MEMO<br/>BOTH EDITIONS · LIGHT THEME</div>
+  </div>
+
+  <!-- decisions -->
+  <div class="dec">
+    <h3 class="dec-h">Calls I made — answering your “open for judgment”</h3>
+    <dl class="dec-grid" id="decGrid"></dl>
+  </div>
+
+  <div id="sections"></div>
+
+</div>
+
+<script>
+const MARKS = {
+  spread: `<svg viewBox="0 0 96 96" fill="none" width="100%" height="100%">
+    <path d="M48 23 C38 16.5 26 16.5 13 19.5 V74 C26 71 38 71 48 77.5 Z" fill="none" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M48 23 C58 16.5 70 16.5 83 19.5 V74 C70 71 58 71 48 77.5 Z" fill="var(--accent)"/>
+    <line x1="48" y1="23" x2="48" y2="77.5" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/></svg>`,
+  ligature: `<svg viewBox="0 0 96 96" fill="none" width="100%" height="100%">
+    <circle cx="48" cy="48" r="37" stroke="var(--ink)" stroke-width="5"/>
+    <text x="48" y="49" text-anchor="middle" dominant-baseline="central" font-family="Newsreader, serif" font-weight="500" font-size="58" fill="var(--accent)">r</text></svg>`
+};
+
+const DECISIONS = [
+  ["Font pairing", `Wordmark + Memo body in <span class="mono">Newsreader</span> (serif). Rendered body in <span class="mono">Hanken Grotesk</span>. Code, status &amp; UI labels in <span class="mono">IBM Plex Mono</span>.`],
+  ["Bar heights", `Title bar <span class="mono">36px</span>, status bar <span class="mono">24px</span> — kept your numbers; 36 gives the wordmark air, 24 stays tight since the mono runs small.`],
+  ["Where the clay leans in", `<span class="clay">Only</span> focus rings, the current-heading bar, in-content links, the active-mode check, and the icon’s right page.`],
+  ["Where it never goes", `Selection is a neutral wash, the Open button is outlined (no fill), non-primary hovers are a faint neutral tint.`],
+  ["Title-bar edge", `A <span class="mono">1px</span> hairline below — not floating. Defines the chrome against the bright page, especially in Memo.`],
+  ["Motion", `Contents drawer pushes in over <span class="mono">280ms</span> ease; menu fades <span class="mono">140ms</span>; hovers/links <span class="mono">120ms</span>; smooth-scroll on heading jumps.`],
+];
+
+const STATES = [
+  { n: "01", t: "Rendered", q: "mode=rendered", cls: "h-full", note: "GitHub-flavored sans body, centered 46rem measure." },
+  { n: "02", t: "Memo", q: "mode=memo", cls: "h-full", note: "Serif page, 6.5\u2033 column, letterhead — built to print." },
+  { n: "03", t: "Status bar", status: true, cls: "h-status", note: "Anatomy & exact spacing (shown at 2×)." },
+  { n: "04", t: "Contents open", q: "mode=rendered&toc=1", cls: "h-full", note: "Left drawer; current heading wears the 2px accent bar." },
+  { n: "05", t: "Empty state", q: "state=empty", cls: "h-full", note: "First launch — drop a file or click Open." },
+];
+
+const EDITIONS = [
+  { id: "spread", name: "Spread · Manuscript", tag: "THE PICK", alt: false,
+    sub: "Warm cream, clay accent, open-book mark.",
+    sw: ["#F3ECDD", "#E2D7C2", "#221C15", "#B4542C"] },
+  { id: "ligature", name: "Ligature · Slate & Cobalt", tag: "FALLBACK", alt: true,
+    sub: "Cool slate, cobalt accent, r-in-ring mark — here if Spread runs into trouble.",
+    sw: ["#F2F4F6", "#DCE1E7", "#232A33", "#2D54E8"] },
+];
+
+// masthead mark (spread)
+document.getElementById("mastMark").innerHTML = MARKS.spread;
+
+// decisions
+document.getElementById("decGrid").innerHTML = DECISIONS.map(([t, d]) =>
+  `<div class="di"><dt><span class="pin"></span>${t}</dt><dd>${d}</dd></div>`).join("");
+
+// sections
+document.getElementById("sections").innerHTML = EDITIONS.map(ed => {
+  const shots = STATES.map(s => {
+    const src = s.status
+      ? `recto-status.html?edition=${ed.id}&theme=light`
+      : `recto-app.html?edition=${ed.id}&theme=light&${s.q}`;
+    return `<figure class="shot">
+      <figcaption class="cap">
+        <span class="num">${s.n}</span><span class="ttl">${s.t}</span>
+        <span class="note">${s.note}</span>
+        <span class="dim">${ed.id}</span>
+      </figcaption>
+      <div class="win-wrap ${s.cls}"><iframe src="${src}" title="${ed.id} ${s.t}"></iframe></div>
+    </figure>`;
+  }).join("");
+  return `<section class="edition" data-ed="${ed.id}">
+    <div class="ed-head">
+      <span class="ed-mark">${MARKS[ed.id]}</span>
+      <span class="ed-name">${ed.name}</span>
+      <span class="ed-tag ${ed.alt ? "alt" : ""}">${ed.tag}</span>
+    </div>
+    <p class="ed-sub">${ed.sub}</p>
+    <div class="ed-swatches">${ed.sw.map(c => `<span class="sw" style="background:${c}"></span>`).join("")}</div>
+    ${shots}
+  </section>`;
+}).join("");
+
+// Each edition section needs its own accent for the marks/tags/swatches.
+// We scope a data-edition on each section wrapper via a tiny style injection.
+document.querySelectorAll('section.edition').forEach(sec => {
+  sec.setAttribute('data-edition', sec.dataset.ed);
+});
+</script>
+<style>
+  /* per-section edition palette so marks, tags, pins use the right accent */
+  section.edition[data-edition="ligature"] { --accent:#2D54E8; --ink:#232A33; }
+</style>
+</body>
+</html>
