@@ -278,15 +278,11 @@ html.no-anim .toc, html.no-anim .menu { transition: none !important; animation: 
 .st-build { color: var(--ink-3); font-size: 10px; opacity: .75; letter-spacing: 0; }
 
 /* ── Window controls (injected by tauri-plugin-decorum) ──────── */
-/* Decorum injects its own min/max/close buttons in an overlay
-   positioned at the top-right of the window so Win11 Snap Layouts
-   work on maximize-button hover (handled via WM_NCHITTEST).
-   We restyle to match the design — 46px wide, neutral hover,
-   red close hover per Windows convention. */
-
-/* Reserve right-side space in our titlebar so decorum's overlay
-   (~3 × 46px = 138px) doesn't cover our Open + menu buttons. */
-.titlebar { padding-right: 138px; }
+/* Decorum injects min/max/close buttons into the <div data-tauri-decorum-tb>
+   slot we placed at the end of .tb-right, so they sit naturally after
+   Open + menu in the flex flow. No extra titlebar padding needed.
+   Style to match the design — 46px wide, neutral hover, red close
+   hover per Windows convention. */
 
 [data-tauri-decorum-tb] {
   height: var(--tb-h);
