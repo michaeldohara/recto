@@ -11,8 +11,11 @@
     "windows": [
       {
         "title": "Recto",
-        "width": 800,
-        "height": 600
+        "width": 1040,
+        "height": 720,
+        "minWidth": 560,
+        "minHeight": 420,
+        "backgroundColor": "#F6F0E3"
       }
     ],
     "security": {

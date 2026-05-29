@@ -1,226 +1,352 @@
 // ============================================================
-// Recto — main frontend logic
+// recto — main viewer logic
 //
-// Phase 1: file load + render + drag-drop + status bar
-// Phase 2: three view modes (raw / rendered / memo) +
-//          relative-path image rendering via asset: protocol
+// Adapted from the designer's recto-viewer.js for Tauri:
+//   - File I/O via Rust commands (open_file_dialog, read_markdown_file)
+//   - Drag-drop via Tauri's onDragDropEvent (real OS file paths)
+//   - Parser is markdown-it (vendored, UMD-loaded in index.html)
+//   - No npm imports, no build chain — vanilla per PLANNING.md
 //
-// Architecture:
-//   - File I/O happens in Rust (see src-tauri/src/lib.rs)
-//   - Frontend uses only window.__TAURI__ globals (no npm imports)
-//     so we stay buildchain-free per docs/PLANNING.md
-//   - Parsing via markdown-it loaded as UMD script in index.html
+// Behavior preserved from the design:
+//   - Title-bar menu (Open, view modes, Show contents)
+//   - View modes: raw / rendered / memo (Ctrl+1/2/3)
+//   - TOC drawer that auto-builds when doc has ≥3 headings (Ctrl+\)
+//   - Scroll-spy current-heading marker
+//   - J/K page scroll
+//   - Drop-veil drag overlay
+//   - Empty state shown when no file loaded
+//   - `no-anim` boot to prevent initial-paint transitions
 // ============================================================
 
-const { invoke, convertFileSrc } = window.__TAURI__.core;
-const { getCurrentWebview } = window.__TAURI__.webview;
+(function () {
+  "use strict";
 
-// ---------- Parser ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const { invoke, convertFileSrc } = window.__TAURI__.core;
+  const { getCurrentWebview } = window.__TAURI__.webview;
 
-const md = window.markdownit({
-  html: false,        // safety: don't pass raw HTML from untrusted .md
-  linkify: true,
-  typographer: false,
-  breaks: false,
-});
-
-// ---------- App state ----------
-
-const STATE = {
-  content: '',           // last-loaded raw Markdown source
-  path: '',              // absolute path of last-loaded file
-  mode: 'rendered',      // 'raw' | 'rendered' | 'memo'
-};
-
-const MODE_LABELS = {
-  raw: 'Raw',
-  rendered: 'Rendered',
-  memo: 'Memo',
-};
-
-// ---------- DOM ----------
-
-const docEl = document.getElementById('doc');
-const filenameEl = document.getElementById('filename');
-const metaEl = document.getElementById('meta');
-const modeLabelEl = document.getElementById('mode-label');
-const openBtn = document.getElementById('open-btn');
-
-// ---------- File loading + rendering ----------
-
-async function loadFile(path) {
-  try {
-    const content = await invoke('read_markdown_file', { path });
-    STATE.content = content;
-    STATE.path = path;
-    renderCurrent();
-  } catch (err) {
-    showError(String(err));
-  }
-}
-
-function setMode(mode) {
-  if (!MODE_LABELS[mode]) return;
-  STATE.mode = mode;
-  document.body.dataset.mode = mode;
-  modeLabelEl.textContent = MODE_LABELS[mode];
-  renderCurrent();
-}
-
-function renderCurrent() {
-  if (!STATE.content) {
-    showEmpty();
-    return;
-  }
-
-  const fileDir = dirname(STATE.path);
-  const filename = basename(STATE.path);
-
-  if (STATE.mode === 'raw') {
-    docEl.innerHTML = `<pre class="doc-raw">${escapeHtml(STATE.content)}</pre>`;
-  } else if (STATE.mode === 'memo') {
-    const html = rewriteImagePaths(md.render(STATE.content), fileDir);
-    const header = renderMemoHeader(filename);
-    docEl.innerHTML = `<article class="doc-memo">${header}${html}</article>`;
-  } else {
-    // rendered (default)
-    const html = rewriteImagePaths(md.render(STATE.content), fileDir);
-    docEl.innerHTML = `<article class="markdown-body doc-rendered">${html}</article>`;
-  }
-
-  // Status bar
-  filenameEl.textContent = filename;
-  filenameEl.title = STATE.path;
-  const stats = computeStats(STATE.content);
-  metaEl.textContent = `${stats.words.toLocaleString()} words · ${stats.readingMin} min read`;
-
-  // Reset scroll on file load (but not on mode change for same content)
-  docEl.scrollTop = 0;
-}
-
-function renderMemoHeader(filename) {
-  const today = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+  // ── Parser ───────────────────────────────────────────────────
+  const md = window.markdownit({
+    html: false,
+    linkify: true,
+    typographer: false,
+    breaks: false,
   });
-  return `<div class="memo-header">` +
-    `<span class="memo-doc-title">${escapeHtml(filename)}</span>` +
-    `<span class="memo-date">${escapeHtml(today)}</span>` +
-  `</div>`;
-}
 
-function showEmpty() {
-  docEl.innerHTML = `<div class="empty-state">` +
-    `<p class="empty-hint">Drop a Markdown file here<br/>or click <strong>Open</strong></p>` +
-  `</div>`;
-  filenameEl.textContent = '';
-  filenameEl.title = '';
-  metaEl.textContent = '';
-}
+  // ── State ────────────────────────────────────────────────────
+  const root = document.documentElement;
+  const STATE = {
+    content: '',       // raw markdown source of currently loaded file
+    path: '',          // absolute path of currently loaded file
+    mode: 'rendered',  // 'raw' | 'rendered' | 'memo'
+  };
 
-function showError(message) {
-  docEl.innerHTML = `<div class="error-state">${escapeHtml(message)}</div>`;
-  filenameEl.textContent = '';
-  metaEl.textContent = '';
-}
+  root.classList.add('no-anim'); // suppress transitions on initial paint
 
-// ---------- Path helpers + image rewriting ----------
+  // ── DOM refs ─────────────────────────────────────────────────
+  const win       = $('#win');
+  const content   = $('#content');
+  const empty     = $('#empty');
+  const menu      = $('#menu');
+  const tocCheck  = $('#tocCheck');
+  const tocList   = $('#tocList');
+  const veil      = $('#dropVeil');
+  const stFile    = $('#stFile');
+  const stWords   = $('#stWords');
+  const stRead    = $('#stRead');
+  const stMode    = $('#stMode');
 
-function dirname(path) {
-  if (!path) return '';
-  const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  return idx >= 0 ? path.slice(0, idx) : '';
-}
+  let headings = [];
+  let hasToc = false;
+  let tocOpen = false;
 
-function basename(path) {
-  if (!path) return '';
-  return path.split(/[\\/]/).pop() || path;
-}
+  // ── Helpers ──────────────────────────────────────────────────
+  function dirname(p) {
+    if (!p) return '';
+    const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return i >= 0 ? p.slice(0, i) : '';
+  }
+  function basename(p) { return p ? (p.split(/[\\/]/).pop() || p) : ''; }
+  function resolveRelative(dir, rel) {
+    const back = dir.includes('\\');
+    const sep = back ? '\\' : '/';
+    const norm = back ? rel.replace(/\//g, '\\') : rel.replace(/\\/g, '/');
+    return dir + sep + norm;
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  }
+  function slug(t) {
+    return t.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function resolveRelative(dir, rel) {
-  // Append rel to dir using the dir's separator style.
-  // Don't normalize ".." — let the OS resolve it when the asset URL is fetched.
-  const useBackslash = dir.includes('\\');
-  const sep = useBackslash ? '\\' : '/';
-  const normalizedRel = useBackslash
-    ? rel.replace(/\//g, '\\')
-    : rel.replace(/\\/g, '/');
-  return dir + sep + normalizedRel;
-}
+  // Rewrite relative image paths through Tauri's asset: protocol so
+  // ![alt](images/foo.png) resolves against the loaded file's folder.
+  function rewriteImagePaths(html, fileDir) {
+    if (!fileDir) return html;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.body.querySelectorAll('img').forEach((img) => {
+      const src = img.getAttribute('src');
+      if (!src) return;
+      if (/^(https?:|data:|file:|asset:|tauri:)/i.test(src)) return;
+      if (/^[a-z]:[/\\]/i.test(src)) return; // Windows absolute (C:\...)
+      if (src.startsWith('/')) return;        // POSIX absolute
+      img.setAttribute('src', convertFileSrc(resolveRelative(fileDir, src)));
+    });
+    return doc.body.innerHTML;
+  }
 
-// Rewrite <img src="..."> in rendered HTML so relative paths resolve
-// against the loaded .md file's folder via Tauri's asset: protocol.
-function rewriteImagePaths(html, fileDir) {
-  if (!fileDir) return html;
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.body.querySelectorAll('img').forEach((img) => {
-    const src = img.getAttribute('src');
-    if (!src) return;
-    // Skip absolute URLs, data URIs, asset:/ URLs
-    if (/^(https?:|data:|file:|asset:|tauri:)/i.test(src)) return;
-    // Skip absolute Windows paths (C:\..., D:/...)
-    if (/^[a-z]:[/\\]/i.test(src)) return;
-    // Skip absolute POSIX paths (/usr/local/...)
-    if (src.startsWith('/')) return;
+  // Word count — strip common Markdown syntax before tokenising.
+  // Reading speed: 230 wpm (matches designer's spec).
+  function wordCount(text) {
+    return text
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`[^`]+`/g, ' ')
+      .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/^[#>\-*+]\s+/gm, '')
+      .replace(/[*_~|]/g, '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+  }
 
-    const absPath = resolveRelative(fileDir, src);
-    img.setAttribute('src', convertFileSrc(absPath));
-  });
-  return doc.body.innerHTML;
-}
+  // ── Render ───────────────────────────────────────────────────
+  function render() {
+    if (!STATE.content) {
+      showEmpty(true);
+      return;
+    }
+    showEmpty(false);
 
-// ---------- Misc helpers ----------
+    const fileDir = dirname(STATE.path);
+    const filename = basename(STATE.path);
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+    if (STATE.mode === 'raw') {
+      content.innerHTML = `<pre class="raw">${escapeHtml(STATE.content)}</pre>`;
+      headings = [];
+    } else {
+      const html = rewriteImagePaths(md.render(STATE.content), fileDir);
+      if (STATE.mode === 'memo') {
+        const today = new Date().toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        });
+        const dir = fileDir || '—';
+        content.innerHTML =
+          `<div class="memo-page">` +
+            `<div class="letterhead">` +
+              `<div class="lh-left">` +
+                `<span class="lh-file">${escapeHtml(filename)}</span>` +
+                `<span class="lh-meta">${escapeHtml(dir)}</span>` +
+              `</div>` +
+              `<div class="lh-right">` +
+                `<span class="lh-date">${escapeHtml(today)}</span>` +
+                `<span class="lh-by">recto</span>` +
+              `</div>` +
+            `</div>` +
+            `<article class="article memo">${html}</article>` +
+          `</div>`;
+      } else {
+        content.innerHTML = `<article class="article">${html}</article>`;
+      }
+      tagHeadings();
+    }
 
-// Status-bar word count.
-// Strips common Markdown syntax before tokenizing — close enough for v1;
-// tooltip breakdown (prose vs code) deferred to Phase 3.
-function computeStats(text) {
-  const stripped = text
-    .replace(/```[\s\S]*?```/g, '')              // fenced code blocks
-    .replace(/`[^`]+`/g, '')                     // inline code
-    .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')   // images/links → alt/text only
-    .replace(/^[#>\-*+]\s+/gm, '')               // heading/list/quote markers
-    .replace(/[*_~|]/g, '');                     // emphasis / table pipes
-  const words = (stripped.match(/\S+/g) || []).length;
-  const readingMin = Math.max(1, Math.ceil(words / 200));
-  return { words, readingMin };
-}
+    content.scrollTop = 0;
+    buildToc();
+    updateStatus();
+  }
 
-// ---------- Triggers ----------
+  function tagHeadings() {
+    headings = [...content.querySelectorAll('h2, h3')];
+    const seen = {};
+    headings.forEach((h) => {
+      let id = slug(h.textContent);
+      if (seen[id] != null) id += '-' + (++seen[id]);
+      else seen[id] = 0;
+      h.id = id;
+    });
+  }
 
-openBtn.addEventListener('click', async () => {
-  const path = await invoke('open_file_dialog');
-  if (path) await loadFile(path);
-});
+  // ── Table of contents ────────────────────────────────────────
+  function buildToc() {
+    hasToc = STATE.mode !== 'raw' && headings.length >= 3;
+    root.classList.toggle('has-toc', hasToc);
+    if (!hasToc) {
+      setToc(false);
+      tocList.innerHTML = '';
+      return;
+    }
+    tocList.innerHTML = '';
+    headings.forEach((h) => {
+      const a = document.createElement('button');
+      a.className = 'toc-link lvl-' + (h.tagName === 'H3' ? 3 : 2);
+      a.textContent = h.textContent;
+      a.dataset.target = h.id;
+      a.addEventListener('click', () => {
+        const top = h.getBoundingClientRect().top
+                  - content.getBoundingClientRect().top
+                  + content.scrollTop - 18;
+        content.scrollTo({ top, behavior: 'smooth' });
+      });
+      tocList.appendChild(a);
+    });
+    spy();
+  }
 
-window.addEventListener('keydown', async (e) => {
-  if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+  function setToc(open) {
+    tocOpen = open && hasToc;
+    win.classList.toggle('toc-open', tocOpen);
+    tocCheck.setAttribute('data-on', String(tocOpen));
+    tocCheck.parentElement.setAttribute('aria-checked', String(tocOpen));
+  }
 
-  switch (e.key) {
-    case '1': e.preventDefault(); setMode('raw'); break;
-    case '2': e.preventDefault(); setMode('rendered'); break;
-    case '3': e.preventDefault(); setMode('memo'); break;
-    case 'o':
-    case 'O': {
-      e.preventDefault();
-      const path = await invoke('open_file_dialog');
-      if (path) await loadFile(path);
-      break;
+  function spy() {
+    if (!tocOpen) return;
+    const links = [...tocList.children];
+    const cTop = content.getBoundingClientRect().top;
+    let active = headings[0];
+    for (const h of headings) {
+      if (h.getBoundingClientRect().top - cTop <= 90) active = h;
+      else break;
+    }
+    links.forEach((l) =>
+      l.classList.toggle('active', l.dataset.target === (active && active.id)));
+  }
+
+  // ── Status bar ───────────────────────────────────────────────
+  function updateStatus() {
+    if (!STATE.content) {
+      stFile.textContent = '—';
+      stFile.removeAttribute('title');
+      stWords.textContent = '0 words';
+      stRead.textContent = '—';
+      stMode.textContent = capitalize(STATE.mode);
+      return;
+    }
+    const words = wordCount(STATE.content);
+    stFile.textContent = basename(STATE.path);
+    stFile.title = STATE.path;
+    stWords.textContent = words.toLocaleString() + ' words';
+    stRead.textContent = Math.max(1, Math.round(words / 230)) + ' min read';
+    stMode.textContent = capitalize(STATE.mode);
+  }
+
+  // ── Empty state ──────────────────────────────────────────────
+  function showEmpty(on) {
+    empty.hidden = !on;
+    content.style.visibility = on ? 'hidden' : 'visible';
+    if (on) {
+      root.classList.remove('has-toc');
+      setToc(false);
+      updateStatus();
     }
   }
-});
 
-// Drag-drop anywhere in the window
-getCurrentWebview().onDragDropEvent((event) => {
-  if (event.payload.type === 'drop' && event.payload.paths.length > 0) {
-    loadFile(event.payload.paths[0]);
+  // ── Mode switching ───────────────────────────────────────────
+  function setMode(m) {
+    if (!['raw', 'rendered', 'memo'].includes(m)) return;
+    STATE.mode = m;
+    root.setAttribute('data-mode', m);
+    syncMenuModes();
+    render();
   }
-});
+  function syncMenuModes() {
+    document.querySelectorAll('.mi[data-mode]').forEach((b) =>
+      b.setAttribute('aria-checked', String(b.dataset.mode === STATE.mode)));
+  }
+
+  // ── Menu ─────────────────────────────────────────────────────
+  function toggleMenu(force) {
+    const show = force != null ? force : menu.hidden;
+    menu.hidden = !show;
+  }
+  $('#btnMenu').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !menu.contains(e.target) && e.target !== $('#btnMenu')) {
+      toggleMenu(false);
+    }
+  });
+  menu.addEventListener('click', (e) => {
+    const item = e.target.closest('.mi');
+    if (!item) return;
+    if (item.dataset.mode) {
+      setMode(item.dataset.mode);
+      toggleMenu(false);
+    } else if (item.dataset.act === 'toc') {
+      setToc(!tocOpen);
+    } else if (item.dataset.act === 'open') {
+      openFile();
+      toggleMenu(false);
+    }
+  });
+
+  // ── File open (Tauri-backed) ─────────────────────────────────
+  async function openFile() {
+    try {
+      const path = await invoke('open_file_dialog');
+      if (path) await loadFile(path);
+    } catch (err) {
+      showError(String(err));
+    }
+  }
+  async function loadFile(path) {
+    try {
+      const content = await invoke('read_markdown_file', { path });
+      STATE.content = content;
+      STATE.path = path;
+      render();
+    } catch (err) {
+      showError(String(err));
+    }
+  }
+  function showError(message) {
+    empty.hidden = true;
+    content.style.visibility = 'visible';
+    content.innerHTML = `<article class="article"><pre class="raw">${escapeHtml(message)}</pre></article>`;
+  }
+
+  $('#btnOpen').addEventListener('click', openFile);
+  $('#btnOpenEmpty').addEventListener('click', openFile);
+
+  // ── Drag-drop (Tauri's onDragDropEvent gives real OS paths) ──
+  getCurrentWebview().onDragDropEvent((event) => {
+    const t = event.payload.type;
+    if (t === 'enter' || t === 'over') {
+      veil.hidden = false;
+    } else if (t === 'leave') {
+      veil.hidden = true;
+    } else if (t === 'drop') {
+      veil.hidden = true;
+      const paths = event.payload.paths || [];
+      if (paths.length > 0) loadFile(paths[0]);
+    }
+  });
+
+  // ── Keyboard ─────────────────────────────────────────────────
+  window.addEventListener('keydown', (e) => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.key === '1')        { e.preventDefault(); setMode('raw'); }
+    else if (ctrl && e.key === '2')   { e.preventDefault(); setMode('rendered'); }
+    else if (ctrl && e.key === '3')   { e.preventDefault(); setMode('memo'); }
+    else if (ctrl && e.key === '\\')  { e.preventDefault(); setToc(!tocOpen); }
+    else if (ctrl && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
+    else if (!ctrl && (e.key === 'j' || e.key === 'k')
+             && document.activeElement.tagName !== 'INPUT') {
+      content.scrollBy({ top: e.key === 'j' ? 320 : -320, behavior: 'smooth' });
+    }
+  });
+
+  // ── Scroll spy ───────────────────────────────────────────────
+  content.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
+
+  // ── Boot ─────────────────────────────────────────────────────
+  syncMenuModes();
+  render(); // shows empty state since STATE.content is ''
+  // Two rAF ticks ensure styles settle before re-enabling transitions
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
+})();
