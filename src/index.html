@@ -56,8 +56,10 @@
         </button>
       </div>
       <!-- Window controls (min/max/close) are injected by tauri-plugin-decorum
-           at runtime so Win11 Snap Layouts work on the maximize button hover.
-           See src/styles/app.css for the .decorum-tb-* styling. -->
+           into this slot at runtime; the explicit placeholder ensures decorum
+           knows where to put them and Win11 Snap Layouts works on max-hover.
+           Styled in src/styles/app.css under .decorum-tb-* / #decorum-tb-*. -->
+      <div data-tauri-decorum-tb></div>
     </div>
   </header>
 
