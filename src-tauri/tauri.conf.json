@@ -30,12 +30,34 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Michael O'Hara",
+    "copyright": "Copyright (c) 2026 Michael O'Hara",
+    "category": "Productivity",
+    "shortDescription": "Viewer-first Markdown reader for Windows",
+    "longDescription": "A fast, viewer-first Markdown reader. Open .md files from File Explorer, switch between three rendering modes (raw / rendered / memo), and export clean PDF or HTML — without the editor chrome of Obsidian, Typora, or VS Code.",
+    "licenseFile": "../LICENSE",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "mdx"],
+        "name": "Markdown",
+        "description": "Markdown document",
+        "role": "Viewer",
+        "mimeType": "text/markdown"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "languages": ["English"]
+      }
+    }
   }
 }

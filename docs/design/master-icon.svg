@@ -1,0 +1,20 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Master app icon source for Recto. Spread brand: open-book mark on
+       dark warm tile, ~24% corner radius (Windows 11 convention).
+       Stroke widened from designer's 4px to 6.5px so 16px/32px taskbar
+       sizes still read after Tauri's downscale. Centered in the canvas
+       via transform (designer's mark is on a 96-unit viewBox; scaled to
+       roughly 66% of the 1024 canvas — 676px). -->
+  <rect width="1024" height="1024" rx="240" ry="240" fill="#221C15"/>
+  <g transform="translate(174 174) scale(7.04)">
+    <!-- verso (left): outline only, cream stroke -->
+    <path d="M48 23 C38 16.5 26 16.5 13 19.5 V74 C26 71 38 71 48 77.5 Z"
+          fill="none" stroke="#F6F0E3" stroke-width="6.5" stroke-linejoin="round"/>
+    <!-- recto (right): solid clay -->
+    <path d="M48 23 C58 16.5 70 16.5 83 19.5 V74 C70 71 58 71 48 77.5 Z"
+          fill="#B4542C"/>
+    <!-- spine -->
+    <line x1="48" y1="23" x2="48" y2="77.5"
+          stroke="#F6F0E3" stroke-width="6.5" stroke-linecap="round"/>
+  </g>
+</svg>
