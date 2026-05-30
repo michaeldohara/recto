@@ -362,3 +362,79 @@ button#decorum-tb-close:active { background: #C42B1C; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Print rules (used by Ctrl+P → Microsoft Print to PDF) ───── */
+/* Hide every bit of chrome so the printed page is just the document. */
+@media print {
+  /* Force light surface for ink-on-paper output regardless of theme */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .titlebar,
+  .statusbar,
+  .menu,
+  .toc,
+  .empty,
+  .drop-veil,
+  [data-tauri-decorum-tb] { display: none !important; }
+
+  .win, .stage { display: block !important; height: auto !important; }
+  .content {
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Rendered mode print: center the article on the page */
+  [data-mode="rendered"] .article {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  /* Memo mode print: the memo-page IS the page; strip the desk styling */
+  [data-mode="memo"] .content { background: transparent !important; }
+  .memo-page {
+    border: none !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Avoid awkward breaks across headings, list items, code blocks */
+  .article h1, .article h2, .article h3, .article h4 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .article p, .article li {
+    orphans: 3;
+    widows: 3;
+  }
+  .article pre, .article table, .article img {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Code blocks: keep contrast readable on white paper */
+  .article pre {
+    background: #f0f0f0 !important;
+    color: #000 !important;
+    border: 1px solid #ccc !important;
+  }
+  .article code { background: #f0f0f0 !important; color: #000 !important; }
+  .article a { color: #000 !important; text-decoration: underline !important; }
+  .article blockquote {
+    border-left-color: #555 !important;
+    color: #333 !important;
+  }
+
+  @page {
+    size: letter;
+    margin: 1in;
+  }
+}

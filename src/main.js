@@ -317,8 +317,119 @@
     } else if (item.dataset.act === 'open') {
       openFile();
       toggleMenu(false);
+    } else if (item.dataset.act === 'export-pdf') {
+      toggleMenu(false);
+      exportPdf();
+    } else if (item.dataset.act === 'export-html') {
+      toggleMenu(false);
+      exportHtml();
     }
   });
+
+  // ── Export: PDF (via window.print) + HTML (self-contained) ───
+  function exportPdf() {
+    if (!STATE.content) return; // nothing to export
+    // window.print() opens the OS dialog; user picks "Microsoft Print to PDF"
+    // CSS @media print rules in app.css hide chrome and tune memo mode for clean pagination.
+    window.print();
+  }
+
+  async function exportHtml() {
+    if (!STATE.content) return;
+    try {
+      const defaultName =
+        (basename(STATE.path) || 'recto-export').replace(/\.[^.]+$/, '') + '.html';
+      const path = await invoke('pick_save_path', { defaultName });
+      if (!path) return; // user cancelled
+
+      // Clone the rendered article (or raw <pre>) so we can mutate freely
+      const sourceEl =
+        content.querySelector('.memo-page') ||
+        content.querySelector('.article') ||
+        content.querySelector('.raw');
+      if (!sourceEl) return;
+      const clone = sourceEl.cloneNode(true);
+
+      // Inline images as data URIs so the HTML is portable outside Tauri
+      await inlineImages(clone);
+
+      // Fetch our app stylesheet to inline (designer's full token set)
+      const css = await fetchText('./styles/app.css').catch(() => '');
+      const fontsCss = await fetchText('./vendor/fonts/fonts.css').catch(() => '');
+
+      const html = buildStandaloneHtml({
+        bodyHtml: clone.outerHTML,
+        css,
+        fontsCss,
+        title: basename(STATE.path) || 'Recto export',
+        mode: STATE.mode,
+      });
+
+      await invoke('save_html_file', { path, content: html });
+    } catch (err) {
+      console.warn('exportHtml failed:', err);
+    }
+  }
+
+  async function fetchText(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
+    return r.text();
+  }
+
+  // Walk img elements, fetch each src, replace with a data: URI.
+  // Skips images already encoded (data:) and silently skips fetch failures.
+  async function inlineImages(root) {
+    const imgs = root.querySelectorAll('img');
+    await Promise.all([...imgs].map(async (img) => {
+      const src = img.getAttribute('src');
+      if (!src || /^data:/i.test(src)) return;
+      try {
+        const r = await fetch(src);
+        const blob = await r.blob();
+        const dataUri = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onloadend = () => resolve(fr.result);
+          fr.onerror = reject;
+          fr.readAsDataURL(blob);
+        });
+        img.setAttribute('src', dataUri);
+      } catch { /* image will be broken in export; tolerable */ }
+    }));
+  }
+
+  function buildStandaloneHtml({ bodyHtml, css, fontsCss, title, mode }) {
+    return `<!DOCTYPE html>
+<html lang="en" data-edition="spread" data-mode="${escapeAttr(mode)}" data-theme="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>
+/* Vendored fonts (Newsreader / Hanken Grotesk / IBM Plex Mono) — not exported as data URIs
+   to keep file size sane. Falls back to web-safe stack if the URLs don't resolve from
+   the export location, which they won't. The CSS keeps the font family chain so a system
+   serif / sans / mono renders if Newsreader/Hanken/Plex aren't installed locally. */
+${fontsCss}
+
+${css}
+
+/* Standalone overrides — no app chrome */
+html, body { overflow: visible !important; height: auto !important; background: var(--paper) !important; }
+.titlebar, .statusbar, .menu, .toc, .empty, .drop-veil, [data-tauri-decorum-tb] { display: none !important; }
+.win, .stage { display: block !important; }
+.content { padding: 0 !important; height: auto !important; overflow: visible !important; background: transparent !important; }
+body { padding: 40px 24px; }
+[data-mode="rendered"] body { max-width: 740px; margin: 0 auto; }
+[data-mode="memo"] body { background: var(--stage) !important; }
+.memo-page { margin: 0 auto !important; }
+</style>
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+  }
 
   // ── File open (Tauri-backed) ─────────────────────────────────
   async function openFile() {
@@ -385,6 +496,7 @@
     else if (ctrl && e.key === '3')   { e.preventDefault(); setMode('memo'); }
     else if (ctrl && e.key === '\\')  { e.preventDefault(); setToc(!tocOpen); }
     else if (ctrl && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
+    else if (ctrl && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPdf(); }
     else if (!ctrl && (e.key === 'j' || e.key === 'k')
              && document.activeElement.tagName !== 'INPUT') {
       content.scrollBy({ top: e.key === 'j' ? 320 : -320, behavior: 'smooth' });
