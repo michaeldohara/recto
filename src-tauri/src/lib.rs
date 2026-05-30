@@ -64,6 +64,24 @@ fn save_app_state(app: tauri::AppHandle, state: serde_json::Value) -> Result<(),
     std::fs::write(&path, s).map_err(|e| format!("write: {e}"))
 }
 
+// Open the native save-file dialog (filtered to HTML) for File → Export HTML.
+// Returns the chosen path, or None if cancelled.
+#[tauri::command]
+async fn pick_save_path(app: tauri::AppHandle, default_name: String) -> Option<String> {
+    app.dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("HTML", &["html", "htm"])
+        .blocking_save_file()
+        .map(|fp| fp.to_string())
+}
+
+// Write a UTF-8 string to disk at the given path. Used by HTML export.
+#[tauri::command]
+fn save_html_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("write: {e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -82,7 +100,9 @@ pub fn run() {
             open_file_dialog,
             get_build_info,
             load_app_state,
-            save_app_state
+            save_app_state,
+            pick_save_path,
+            save_html_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
