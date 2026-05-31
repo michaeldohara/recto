@@ -21,6 +21,32 @@ That's the gap. It's also exactly what I'd use daily for reading planning docs, 
 
 A single-window Windows app that opens `.md` files from File Explorer, renders them in one of three view modes (raw / rendered / memo), and exports clean PDF or HTML.
 
+## Format scope
+
+Recto reads **text-bearing documents that technical professionals encounter daily**. The principle, not a wish-list — every format proposal gets evaluated against this frame.
+
+| Format | When supported |
+|---|---|
+| Markdown (`.md` / `.markdown` / `.mdx`) | v1 (shipped) |
+| Word documents (`.docx`) | v1.x — Phase 8 (see [`PHASE-89-FORMATS-PLAN.md`](PHASE-89-FORMATS-PLAN.md)) |
+| JSON (`.json`) | v1.x — Phase 9 (see [`PHASE-89-FORMATS-PLAN.md`](PHASE-89-FORMATS-PLAN.md)) |
+| XML (`.xml`) | v1.x — Phase 9 |
+
+The same three view modes apply across formats. **"Rendered" mode universally means *"the most readable form of this file"*** — GitHub-styled HTML for Markdown, mammoth output for `.docx`, pretty-printed + syntax-highlighted source for JSON/XML. Modes that don't apply to a file type (e.g. Memo for JSON, Raw for `.docx`) are disabled in the menu.
+
+### Explicitly out of scope
+
+(With one-line rationale per exclusion, so we don't re-litigate.)
+
+- **PDF** — completely different problem space (fonts, vectors, scanned-image OCR). Dedicated viewer ecosystem already exists.
+- **YAML / TOML / INI** — niche enough that JSON + XML cover the 80% inspection case.
+- **CSV / TSV** — spreadsheet workflow, different mental model.
+- **EPUB** — long-form ebook reading is a different use case (Calibre etc.).
+- **RTF / `.doc` legacy** — minimal demand; convert via Pandoc if needed.
+- **Source code files (`.js` / `.py` / `.rs` / etc.)** — IDE territory, not a reading workflow.
+
+Future requests to add format X get measured against the principle. If "text-bearing document a technical professional encounters daily" → consider. Otherwise → polite decline.
+
 ## v1 scope
 
 ### In — core
