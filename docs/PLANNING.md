@@ -27,10 +27,12 @@ Recto reads **text-bearing documents that technical professionals encounter dail
 
 | Format | When supported |
 |---|---|
-| Markdown (`.md` / `.markdown` / `.mdx`) | v1 (shipped) |
-| Word documents (`.docx`) | v1.x — Phase 8 (see [`PHASE-89-FORMATS-PLAN.md`](PHASE-89-FORMATS-PLAN.md)) |
-| JSON (`.json`) | v1.x — Phase 9 (see [`PHASE-89-FORMATS-PLAN.md`](PHASE-89-FORMATS-PLAN.md)) |
-| XML (`.xml`) | v1.x — Phase 9 |
+| Markdown (`.md` / `.markdown` / `.mdx`) | v0.1.0 (shipped) |
+| Word documents (`.docx`) | **v0.2.0** — Phase 8 (active queue — see [`PHASE-89-FORMATS-PLAN.md`](PHASE-89-FORMATS-PLAN.md)) |
+| JSON (`.json`) | **v0.3.0** — Phase 9 |
+| XML (`.xml`) | **v0.3.0** — Phase 9 |
+
+**v1.0.0** is tagged when all four formats are in the box. That's the audience-complete release.
 
 The same three view modes apply across formats. **"Rendered" mode universally means *"the most readable form of this file"*** — GitHub-styled HTML for Markdown, mammoth output for `.docx`, pretty-printed + syntax-highlighted source for JSON/XML. Modes that don't apply to a file type (e.g. Memo for JSON, Raw for `.docx`) are disabled in the menu.
 
