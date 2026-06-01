@@ -55,6 +55,9 @@
           <span class="mi-check" id="tocCheck"></span><span class="mi-label">Show contents</span><span class="mi-kbd">Ctrl \</span>
         </button>
         <div class="mi-div"></div>
+        <button class="mi" data-act="save-as-md" role="menuitem">
+          <span class="mi-check"></span><span class="mi-label">Save as Markdown…</span><span class="mi-kbd"></span>
+        </button>
         <button class="mi" data-act="export-pdf" role="menuitem">
           <span class="mi-check"></span><span class="mi-label">Export PDF…</span><span class="mi-kbd">Ctrl P</span>
         </button>
@@ -128,7 +131,9 @@
 
 <!-- markdown-it loaded as UMD (exposes window.markdownit) -->
 <script src="./vendor/markdown-it.min.js"></script>
-<!-- main app logic — runs after DOM + markdown-it -->
+<!-- mammoth.js — .docx parsing (exposes window.mammoth) -->
+<script src="./vendor/mammoth.browser.min.js"></script>
+<!-- main app logic — runs after DOM + parsers -->
 <script type="module" src="./main.js"></script>
 </body>
 </html>
