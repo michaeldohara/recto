@@ -1,8 +1,17 @@
 # Recto — Phases 8 & 9: `.docx` + JSON/XML support
 
-**Status:** draft — **held pending v1 launch signal**
+**Status:** active queue — targeted for **v0.2.0** (Phase 8 / .docx) and **v0.3.0** (Phase 9 / JSON-XML). v1.0.0 tag when both land.
 **Author:** Michael O'Hara + Claude
-**Date:** 2026-05-31
+**Date:** 2026-05-31 *(updated same day: promoted from "held pending v1 launch signal" to active queue — these are core audience needs, not speculative features)*
+
+## Why active rather than held
+
+The earlier "held pending launch signal" stamp confused two distinct cases:
+
+- **Speculative features** (e.g. AI search) — genuinely uncertain whether users want them. Wait-for-signal applies.
+- **Known audience needs** (`.docx`, JSON/XML) — the project owner *is* the target audience and has explicitly stated they'll use these daily for their actual job. The signal is the spec.
+
+`.docx` and JSON/XML viewing aren't "would be nice"; they're "I won't reach for Recto over Notepad++ without them." Building them is filling in the audience-defined core, not chasing a hypothesis.
 
 ---
 
@@ -163,12 +172,10 @@ Total estimate combined: **~4 days** of focused work once started.
 
 ---
 
-## Held pending v1 launch signal
+## Release plan
 
-This work is fully scoped but **not started**. Per the launch-and-listen discipline established post-v1-ship, code begins on one of these triggers:
+- **v0.2.0** — Phase 8 ships (.docx read + Save as Markdown)
+- **v0.3.0** — Phase 9 ships (JSON / XML pretty-printing)
+- **v1.0.0** — tag when 0.3 lands. This is the audience-complete release.
 
-- v1 gets 100+ GitHub stars OR
-- ≥3 users explicitly request `.docx` OR JSON/XML viewing in issues OR
-- 6 weeks pass and we want to build it for portfolio reasons (legitimate)
-
-If none of those happen, this doc stays as a record of the considered roadmap. Better to have a thought-through plan that doesn't ship than start coding and abandon mid-phase.
+Launch-and-listen discipline still applies — but to *post-1.0* features (AI search, theme marketplace, cloud sync, multi-doc context). Those wait for real signal from users beyond the project owner.
