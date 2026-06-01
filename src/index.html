@@ -129,10 +129,18 @@
 
 </div>
 
+<!-- highlight.js theme — auto-swaps via prefers-color-scheme.
+     Applies only to elements with .hljs class (added by hljs.highlightElement),
+     so existing markdown code-block styling (dark surface) isn't affected. -->
+<link rel="stylesheet" href="./vendor/hljs/github.min.css" media="(prefers-color-scheme: light)" />
+<link rel="stylesheet" href="./vendor/hljs/github-dark.min.css" media="(prefers-color-scheme: dark)" />
+
 <!-- markdown-it loaded as UMD (exposes window.markdownit) -->
 <script src="./vendor/markdown-it.min.js"></script>
 <!-- mammoth.js — .docx parsing (exposes window.mammoth) -->
 <script src="./vendor/mammoth.browser.min.js"></script>
+<!-- highlight.js — syntax highlighting for JSON/XML/code (exposes window.hljs) -->
+<script src="./vendor/hljs/highlight.min.js"></script>
 <!-- main app logic — runs after DOM + parsers -->
 <script type="module" src="./main.js"></script>
 </body>

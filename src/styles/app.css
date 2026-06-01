@@ -255,6 +255,50 @@ html.no-anim .toc, html.no-anim .menu { transition: none !important; animation: 
   white-space: pre-wrap; word-break: break-word; max-width: 60rem; margin: 0; tab-size: 2;
 }
 
+/* ── Data view (JSON / XML rendered mode) ────────────────────── */
+/* Wraps a syntax-highlighted block on the paper surface.
+   The hljs class on the inner <code> gets colored by github(-dark).min.css. */
+.data-view {
+  padding: 24px 28px 64px;
+  background: var(--paper);
+  min-height: 100%;
+}
+.data-pre {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--ink);
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+}
+.data-pre code.hljs {
+  /* highlight.js themes paint their own background — keep transparent
+     so our paper bg shows through and the page feels light/dark with the app. */
+  background: transparent !important;
+  padding: 0;
+}
+.data-error {
+  margin: 24px 28px 14px;
+  padding: 10px 14px;
+  background: rgba(180, 84, 44, 0.08);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.data-error-label {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 4px;
+}
+
 /* ── Empty state ───────────────────────────────────────────────── */
 .empty { position: absolute; inset: 0; display: grid; place-items: center; background: var(--paper); z-index: 10; }
 .empty-inner { text-align: center; max-width: 360px; padding: 24px; }
