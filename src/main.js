@@ -728,8 +728,17 @@ ${bodyHtml}
       root.setAttribute('data-mode', STATE.mode);
     }
     syncMenuModes();
-    render();
-    renderRecents();
+
+    // If launched via "Open with Recto" (right-click verb / file association /
+    // command line), load the requested file directly instead of empty state.
+    const initial = await invoke('get_initial_file').catch(() => null);
+    if (initial) {
+      await loadFile(initial);
+    } else {
+      render(); // empty state
+      renderRecents();
+    }
+
     invoke('get_build_info').then((info) => {
       const badge = $('#stBuild');
       badge.textContent = `v${info.version}·${info.sha}`;

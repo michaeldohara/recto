@@ -34,6 +34,18 @@ fn get_build_info() -> serde_json::Value {
     })
 }
 
+// Returns the first command-line argument that looks like an existing
+// file path. Used on boot to handle "Open with Recto" launches from
+// File Explorer / the installer-registered right-click verb. Skips
+// flag-like args and non-existent paths so accidental garbage doesn't
+// trigger a phantom load attempt.
+#[tauri::command]
+fn get_initial_file() -> Option<String> {
+    std::env::args()
+        .skip(1) // arg 0 is the binary itself
+        .find(|a| !a.starts_with('-') && std::path::Path::new(a).is_file())
+}
+
 // Resolve the on-disk path for app state (lastMode, recents, scroll
 // positions). Located in the OS-conventional per-user app data dir.
 fn state_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -120,6 +132,7 @@ pub fn run() {
             read_markdown_file,
             open_file_dialog,
             get_build_info,
+            get_initial_file,
             load_app_state,
             save_app_state,
             pick_save_path,
