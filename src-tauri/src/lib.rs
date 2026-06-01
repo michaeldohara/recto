@@ -64,22 +64,43 @@ fn save_app_state(app: tauri::AppHandle, state: serde_json::Value) -> Result<(),
     std::fs::write(&path, s).map_err(|e| format!("write: {e}"))
 }
 
-// Open the native save-file dialog (filtered to HTML) for File → Export HTML.
+// Open the native save-file dialog with a configurable filter.
 // Returns the chosen path, or None if cancelled.
+// filter_name / filter_exts default to HTML so existing callers stay compatible.
 #[tauri::command]
-async fn pick_save_path(app: tauri::AppHandle, default_name: String) -> Option<String> {
+async fn pick_save_path(
+    app: tauri::AppHandle,
+    default_name: String,
+    filter_name: Option<String>,
+    filter_exts: Option<Vec<String>>,
+) -> Option<String> {
+    let name = filter_name.unwrap_or_else(|| "HTML".into());
+    let exts: Vec<String> = filter_exts.unwrap_or_else(|| vec!["html".into(), "htm".into()]);
+    let exts_ref: Vec<&str> = exts.iter().map(String::as_str).collect();
     app.dialog()
         .file()
         .set_file_name(&default_name)
-        .add_filter("HTML", &["html", "htm"])
+        .add_filter(&name, &exts_ref)
         .blocking_save_file()
         .map(|fp| fp.to_string())
 }
 
-// Write a UTF-8 string to disk at the given path. Used by HTML export.
+// Write a UTF-8 string to disk at the given path. Used by HTML export
+// and "Save as Markdown" (.docx → .md).
 #[tauri::command]
 fn save_html_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| format!("write: {e}"))
+}
+
+// Read a .docx file as raw bytes and return them base64-encoded.
+// mammoth.js in the frontend decodes back to ArrayBuffer for parsing.
+// Base64 transport keeps IPC payload compact (vs Tauri's default Vec<u8>
+// serialization which expands to a JSON array of numbers).
+#[tauri::command]
+fn read_docx_bytes(path: String) -> Result<String, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    let bytes = std::fs::read(&path).map_err(|e| format!("read {path}: {e}"))?;
+    Ok(STANDARD.encode(&bytes))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -102,7 +123,8 @@ pub fn run() {
             load_app_state,
             save_app_state,
             pick_save_path,
-            save_html_file
+            save_html_file,
+            read_docx_bytes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

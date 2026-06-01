@@ -2,20 +2,18 @@
 // recto — main viewer logic
 //
 // Adapted from the designer's recto-viewer.js for Tauri:
-//   - File I/O via Rust commands (open_file_dialog, read_markdown_file)
+//   - File I/O via Rust commands (open_file_dialog, read_markdown_file,
+//     read_docx_bytes, save_html_file, pick_save_path)
 //   - Drag-drop via Tauri's onDragDropEvent (real OS file paths)
-//   - Parser is markdown-it (vendored, UMD-loaded in index.html)
+//   - Parsers: markdown-it (vendored UMD) for .md;
+//     mammoth.js (vendored UMD) for .docx
 //   - No npm imports, no build chain — vanilla per PLANNING.md
 //
-// Behavior preserved from the design:
-//   - Title-bar menu (Open, view modes, Show contents)
-//   - View modes: raw / rendered / memo (Ctrl+1/2/3)
-//   - TOC drawer that auto-builds when doc has ≥3 headings (Ctrl+\)
-//   - Scroll-spy current-heading marker
-//   - J/K page scroll
-//   - Drop-veil drag overlay
-//   - Empty state shown when no file loaded
-//   - `no-anim` boot to prevent initial-paint transitions
+// File-type dispatch (Phase 8+):
+//   FILE_TYPES describes which view modes apply per file type, the
+//   default mode, and a render(state, mode) producer per type.
+//   loadFile() dispatches on extension; render() pulls the right
+//   producer; menu items grey themselves via syncMenuModes().
 // ============================================================
 
 (function () {
@@ -25,7 +23,7 @@
   const { invoke, convertFileSrc } = window.__TAURI__.core;
   const { getCurrentWebview } = window.__TAURI__.webview;
 
-  // ── Parser ───────────────────────────────────────────────────
+  // ── Parser (markdown) ────────────────────────────────────────
   const md = window.markdownit({
     html: false,
     linkify: true,
@@ -36,19 +34,22 @@
   // ── State ────────────────────────────────────────────────────
   const root = document.documentElement;
   const STATE = {
-    content: '',       // raw markdown source of currently loaded file
-    path: '',          // absolute path of currently loaded file
-    mode: 'rendered',  // 'raw' | 'rendered' | 'memo'
+    content: '',        // raw text source (markdown) — empty for binary types
+    html: null,         // pre-rendered HTML — populated for .docx
+    docxBuffer: null,   // ArrayBuffer kept for "Save as Markdown" round-trip
+    path: '',           // absolute path of currently loaded file
+    fileType: 'markdown', // 'markdown' | 'docx'
+    mode: 'rendered',   // 'raw' | 'rendered' | 'memo'
   };
 
   // Persisted across launches (Rust: load_app_state / save_app_state)
   const appState = {
     lastMode: 'rendered',
-    recents: [],             // [paths] most-recent-first, dedup, max 10
-    scrollPositions: {},     // { path: 0..1 }
+    recents: [],
+    scrollPositions: {},
   };
 
-  root.classList.add('no-anim'); // suppress transitions on initial paint
+  root.classList.add('no-anim');
 
   // ── DOM refs ─────────────────────────────────────────────────
   const win       = $('#win');
@@ -74,6 +75,11 @@
     return i >= 0 ? p.slice(0, i) : '';
   }
   function basename(p) { return p ? (p.split(/[\\/]/).pop() || p) : ''; }
+  function extOf(p) {
+    const b = basename(p);
+    const i = b.lastIndexOf('.');
+    return i > 0 ? b.slice(i + 1).toLowerCase() : '';
+  }
   function resolveRelative(dir, rel) {
     const back = dir.includes('\\');
     const sep = back ? '\\' : '/';
@@ -91,8 +97,17 @@
     return t.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
   }
   function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function hasContent() { return !!(STATE.content || STATE.html); }
 
-  // ── Persistent state (lastMode, recents, scroll positions) ───
+  // Decode base64 string → Uint8Array (used for .docx bytes from Rust)
+  function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  // ── Persistent state ─────────────────────────────────────────
   async function loadState() {
     try {
       const s = await invoke('load_app_state');
@@ -103,8 +118,6 @@
       }
     } catch (e) { console.warn('load_app_state failed:', e); }
   }
-
-  // Throttle saves — we hit save() from scroll/mode/file events; collapse to ~300ms
   let saveTimer = null;
   function scheduleSave() {
     if (saveTimer) clearTimeout(saveTimer);
@@ -115,8 +128,7 @@
     }, 300);
   }
 
-  // Rewrite relative image paths through Tauri's asset: protocol so
-  // ![alt](images/foo.png) resolves against the loaded file's folder.
+  // ── Image-path rewriting (markdown only) ─────────────────────
   function rewriteImagePaths(html, fileDir) {
     if (!fileDir) return html;
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -124,16 +136,16 @@
       const src = img.getAttribute('src');
       if (!src) return;
       if (/^(https?:|data:|file:|asset:|tauri:)/i.test(src)) return;
-      if (/^[a-z]:[/\\]/i.test(src)) return; // Windows absolute (C:\...)
-      if (src.startsWith('/')) return;        // POSIX absolute
+      if (/^[a-z]:[/\\]/i.test(src)) return;
+      if (src.startsWith('/')) return;
       img.setAttribute('src', convertFileSrc(resolveRelative(fileDir, src)));
     });
     return doc.body.innerHTML;
   }
 
-  // Word count — strip common Markdown syntax before tokenising.
-  // Reading speed: 230 wpm (matches designer's spec).
-  function wordCount(text) {
+  // ── Word count helpers ───────────────────────────────────────
+  // For markdown: strip syntax before counting
+  function wordCountMarkdown(text) {
     return text
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/`[^`]+`/g, ' ')
@@ -144,47 +156,92 @@
       .filter(Boolean)
       .length;
   }
+  // For HTML-source files (.docx): count words in text content
+  function wordCountFromHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return (tmp.textContent || '').split(/\s+/).filter(Boolean).length;
+  }
+
+  // ── File-type dispatch table ─────────────────────────────────
+  // Adding Phase 9 formats (json/xml) means adding entries here.
+  function memoPage(state, html) {
+    const today = new Date().toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const fileDir = dirname(state.path);
+    const dir = fileDir || '—';
+    return `<div class="memo-page">` +
+      `<div class="letterhead">` +
+        `<div class="lh-left">` +
+          `<span class="lh-file">${escapeHtml(basename(state.path))}</span>` +
+          `<span class="lh-meta">${escapeHtml(dir)}</span>` +
+        `</div>` +
+        `<div class="lh-right">` +
+          `<span class="lh-date">${escapeHtml(today)}</span>` +
+          `<span class="lh-by">recto</span>` +
+        `</div>` +
+      `</div>` +
+      `<article class="article memo">${html}</article>` +
+    `</div>`;
+  }
+  const FILE_TYPES = {
+    markdown: {
+      canRaw: true, canRendered: true, canMemo: true,
+      defaultMode: 'rendered',
+      render(state, mode) {
+        const fileDir = dirname(state.path);
+        if (mode === 'raw') return `<pre class="raw">${escapeHtml(state.content)}</pre>`;
+        const html = rewriteImagePaths(md.render(state.content), fileDir);
+        if (mode === 'memo') return memoPage(state, html);
+        return `<article class="article">${html}</article>`;
+      },
+      wordCount(state) { return wordCountMarkdown(state.content); },
+    },
+    docx: {
+      // .docx is binary — no useful source view, so Raw is disabled.
+      canRaw: false, canRendered: true, canMemo: true,
+      defaultMode: 'rendered',
+      render(state, mode) {
+        const html = state.html || '';
+        if (mode === 'memo') return memoPage(state, html);
+        return `<article class="article">${html}</article>`;
+      },
+      wordCount(state) { return wordCountFromHtml(state.html || ''); },
+    },
+  };
+  function detectFileType(path) {
+    const e = extOf(path);
+    if (e === 'docx') return 'docx';
+    return 'markdown'; // default — markdown-it can render plaintext gracefully too
+  }
+  function modeAvailable(fileType, mode) {
+    const t = FILE_TYPES[fileType] || FILE_TYPES.markdown;
+    return Boolean(t[`can${capitalize(mode)}`]);
+  }
 
   // ── Render ───────────────────────────────────────────────────
   function render() {
-    if (!STATE.content) {
+    if (!hasContent()) {
       showEmpty(true);
       return;
     }
     showEmpty(false);
 
-    const fileDir = dirname(STATE.path);
-    const filename = basename(STATE.path);
+    const typeDef = FILE_TYPES[STATE.fileType] || FILE_TYPES.markdown;
 
-    if (STATE.mode === 'raw') {
-      content.innerHTML = `<pre class="raw">${escapeHtml(STATE.content)}</pre>`;
-      headings = [];
-    } else {
-      const html = rewriteImagePaths(md.render(STATE.content), fileDir);
-      if (STATE.mode === 'memo') {
-        const today = new Date().toLocaleDateString('en-US', {
-          year: 'numeric', month: 'long', day: 'numeric',
-        });
-        const dir = fileDir || '—';
-        content.innerHTML =
-          `<div class="memo-page">` +
-            `<div class="letterhead">` +
-              `<div class="lh-left">` +
-                `<span class="lh-file">${escapeHtml(filename)}</span>` +
-                `<span class="lh-meta">${escapeHtml(dir)}</span>` +
-              `</div>` +
-              `<div class="lh-right">` +
-                `<span class="lh-date">${escapeHtml(today)}</span>` +
-                `<span class="lh-by">recto</span>` +
-              `</div>` +
-            `</div>` +
-            `<article class="article memo">${html}</article>` +
-          `</div>`;
-      } else {
-        content.innerHTML = `<article class="article">${html}</article>`;
-      }
-      tagHeadings();
+    // If current mode isn't supported for this file type, fall back.
+    // setMode() will re-call render() once it switches.
+    if (!modeAvailable(STATE.fileType, STATE.mode)) {
+      setMode(typeDef.defaultMode);
+      return;
     }
+
+    content.innerHTML = typeDef.render(STATE, STATE.mode);
+
+    // Tag headings for TOC (only meaningful in non-raw modes)
+    if (STATE.mode !== 'raw') tagHeadings();
+    else headings = [];
 
     content.scrollTop = 0;
     buildToc();
@@ -206,11 +263,7 @@
   function buildToc() {
     hasToc = STATE.mode !== 'raw' && headings.length >= 3;
     root.classList.toggle('has-toc', hasToc);
-    if (!hasToc) {
-      setToc(false);
-      tocList.innerHTML = '';
-      return;
-    }
+    if (!hasToc) { setToc(false); tocList.innerHTML = ''; return; }
     tocList.innerHTML = '';
     headings.forEach((h) => {
       const a = document.createElement('button');
@@ -227,14 +280,12 @@
     });
     spy();
   }
-
   function setToc(open) {
     tocOpen = open && hasToc;
     win.classList.toggle('toc-open', tocOpen);
     tocCheck.setAttribute('data-on', String(tocOpen));
     tocCheck.parentElement.setAttribute('aria-checked', String(tocOpen));
   }
-
   function spy() {
     if (!tocOpen) return;
     const links = [...tocList.children];
@@ -250,7 +301,7 @@
 
   // ── Status bar ───────────────────────────────────────────────
   function updateStatus() {
-    if (!STATE.content) {
+    if (!hasContent()) {
       stFile.textContent = '—';
       stFile.removeAttribute('title');
       stWords.textContent = '0 words';
@@ -258,7 +309,8 @@
       stMode.textContent = capitalize(STATE.mode);
       return;
     }
-    const words = wordCount(STATE.content);
+    const typeDef = FILE_TYPES[STATE.fileType] || FILE_TYPES.markdown;
+    const words = typeDef.wordCount(STATE);
     stFile.textContent = basename(STATE.path);
     stFile.title = STATE.path;
     stWords.textContent = words.toLocaleString() + ' words';
@@ -277,9 +329,10 @@
     }
   }
 
-  // ── Mode switching ───────────────────────────────────────────
+  // ── Mode switching (respects per-type availability) ──────────
   function setMode(m) {
     if (!['raw', 'rendered', 'memo'].includes(m)) return;
+    if (!modeAvailable(STATE.fileType, m)) return; // no-op for disabled modes
     STATE.mode = m;
     root.setAttribute('data-mode', m);
     syncMenuModes();
@@ -288,8 +341,20 @@
     scheduleSave();
   }
   function syncMenuModes() {
-    document.querySelectorAll('.mi[data-mode]').forEach((b) =>
-      b.setAttribute('aria-checked', String(b.dataset.mode === STATE.mode)));
+    document.querySelectorAll('.mi[data-mode]').forEach((b) => {
+      const m = b.dataset.mode;
+      const ok = modeAvailable(STATE.fileType, m);
+      b.setAttribute('aria-checked', String(m === STATE.mode));
+      b.disabled = !ok;
+      b.classList.toggle('mi-disabled', !ok);
+    });
+    // Save-as-Markdown is .docx-only
+    const saveAsBtn = document.querySelector('.mi[data-act="save-as-md"]');
+    if (saveAsBtn) {
+      const ok = STATE.fileType === 'docx';
+      saveAsBtn.disabled = !ok;
+      saveAsBtn.classList.toggle('mi-disabled', !ok);
+    }
   }
 
   // ── Menu ─────────────────────────────────────────────────────
@@ -308,77 +373,61 @@
   });
   menu.addEventListener('click', (e) => {
     const item = e.target.closest('.mi');
-    if (!item) return;
+    if (!item || item.disabled) return;
     if (item.dataset.mode) {
       setMode(item.dataset.mode);
       toggleMenu(false);
     } else if (item.dataset.act === 'toc') {
       setToc(!tocOpen);
     } else if (item.dataset.act === 'open') {
-      openFile();
-      toggleMenu(false);
+      openFile(); toggleMenu(false);
+    } else if (item.dataset.act === 'save-as-md') {
+      toggleMenu(false); saveAsMarkdown();
     } else if (item.dataset.act === 'export-pdf') {
-      toggleMenu(false);
-      exportPdf();
+      toggleMenu(false); exportPdf();
     } else if (item.dataset.act === 'export-html') {
-      toggleMenu(false);
-      exportHtml();
+      toggleMenu(false); exportHtml();
     }
   });
 
-  // ── Export: PDF (via window.print) + HTML (self-contained) ───
+  // ── Export: PDF (window.print) + HTML (self-contained) ───────
   function exportPdf() {
-    if (!STATE.content) return; // nothing to export
-    // window.print() opens the OS dialog; user picks "Microsoft Print to PDF"
-    // CSS @media print rules in app.css hide chrome and tune memo mode for clean pagination.
+    if (!hasContent()) return;
     window.print();
   }
-
   async function exportHtml() {
-    if (!STATE.content) return;
+    if (!hasContent()) return;
     try {
-      const defaultName =
-        (basename(STATE.path) || 'recto-export').replace(/\.[^.]+$/, '') + '.html';
-      const path = await invoke('pick_save_path', { defaultName });
-      if (!path) return; // user cancelled
-
-      // Clone the rendered article (or raw <pre>) so we can mutate freely
+      const defaultName = (basename(STATE.path) || 'recto-export').replace(/\.[^.]+$/, '') + '.html';
+      const path = await invoke('pick_save_path', {
+        defaultName,
+        filterName: 'HTML',
+        filterExts: ['html', 'htm'],
+      });
+      if (!path) return;
       const sourceEl =
         content.querySelector('.memo-page') ||
         content.querySelector('.article') ||
         content.querySelector('.raw');
       if (!sourceEl) return;
       const clone = sourceEl.cloneNode(true);
-
-      // Inline images as data URIs so the HTML is portable outside Tauri
       await inlineImages(clone);
-
-      // Fetch our app stylesheet to inline (designer's full token set)
       const css = await fetchText('./styles/app.css').catch(() => '');
       const fontsCss = await fetchText('./vendor/fonts/fonts.css').catch(() => '');
-
       const html = buildStandaloneHtml({
         bodyHtml: clone.outerHTML,
-        css,
-        fontsCss,
+        css, fontsCss,
         title: basename(STATE.path) || 'Recto export',
         mode: STATE.mode,
       });
-
       await invoke('save_html_file', { path, content: html });
-    } catch (err) {
-      console.warn('exportHtml failed:', err);
-    }
+    } catch (err) { console.warn('exportHtml failed:', err); }
   }
-
   async function fetchText(url) {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
     return r.text();
   }
-
-  // Walk img elements, fetch each src, replace with a data: URI.
-  // Skips images already encoded (data:) and silently skips fetch failures.
   async function inlineImages(root) {
     const imgs = root.querySelectorAll('img');
     await Promise.all([...imgs].map(async (img) => {
@@ -394,10 +443,9 @@
           fr.readAsDataURL(blob);
         });
         img.setAttribute('src', dataUri);
-      } catch { /* image will be broken in export; tolerable */ }
+      } catch { /* tolerate */ }
     }));
   }
-
   function buildStandaloneHtml({ bodyHtml, css, fontsCss, title, mode }) {
     return `<!DOCTYPE html>
 <html lang="en" data-edition="spread" data-mode="${escapeAttr(mode)}" data-theme="auto">
@@ -406,10 +454,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(title)}</title>
 <style>
-/* Vendored fonts (Newsreader / Hanken Grotesk / IBM Plex Mono) — not exported as data URIs
-   to keep file size sane. Falls back to web-safe stack if the URLs don't resolve from
-   the export location, which they won't. The CSS keeps the font family chain so a system
-   serif / sans / mono renders if Newsreader/Hanken/Plex aren't installed locally. */
 ${fontsCss}
 
 ${css}
@@ -431,26 +475,65 @@ ${bodyHtml}
 </html>`;
   }
 
-  // ── File open (Tauri-backed) ─────────────────────────────────
+  // ── Save as Markdown (.docx only) ────────────────────────────
+  async function saveAsMarkdown() {
+    if (STATE.fileType !== 'docx' || !STATE.docxBuffer) return;
+    try {
+      const defaultName = (basename(STATE.path) || 'recto-export').replace(/\.[^.]+$/, '') + '.md';
+      const path = await invoke('pick_save_path', {
+        defaultName,
+        filterName: 'Markdown',
+        filterExts: ['md', 'markdown'],
+      });
+      if (!path) return;
+      const result = await window.mammoth.convertToMarkdown({ arrayBuffer: STATE.docxBuffer });
+      // save_html_file is misleadingly named — it's "write a UTF-8 string to disk."
+      // Reusing instead of duplicating; the Rust comment notes this.
+      await invoke('save_html_file', { path, content: result.value });
+    } catch (err) { console.warn('saveAsMarkdown failed:', err); }
+  }
+
+  // ── File open / load (Tauri-backed, type-dispatched) ─────────
   async function openFile() {
     try {
       const path = await invoke('open_file_dialog');
       if (path) await loadFile(path);
-    } catch (err) {
-      showError(String(err));
-    }
+    } catch (err) { showError(String(err)); }
   }
   async function loadFile(path) {
     try {
-      // Note: local var `text` avoids shadowing the outer `content` DOM ref
-      const text = await invoke('read_markdown_file', { path });
-      STATE.content = text;
+      const fileType = detectFileType(path);
+
+      if (fileType === 'docx') {
+        const b64 = await invoke('read_docx_bytes', { path });
+        const bytes = base64ToBytes(b64);
+        const result = await window.mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
+        STATE.content = '';
+        STATE.html = result.value || '';
+        STATE.docxBuffer = bytes.buffer;
+      } else {
+        const text = await invoke('read_markdown_file', { path });
+        STATE.content = text;
+        STATE.html = null;
+        STATE.docxBuffer = null;
+      }
       STATE.path = path;
+      STATE.fileType = fileType;
+
+      // Ensure current mode is valid for the new file type; fall back if not
+      if (!modeAvailable(fileType, STATE.mode)) {
+        const def = FILE_TYPES[fileType].defaultMode;
+        STATE.mode = def;
+        root.setAttribute('data-mode', def);
+      }
+      syncMenuModes();
       render();
-      // Bump to top of recents (dedup, cap at 10)
+
+      // Recents (dedup, cap 10)
       appState.recents = [path, ...appState.recents.filter((p) => p !== path)].slice(0, 10);
       scheduleSave();
-      // Restore previous reading position (after layout settles)
+
+      // Restore previous reading position
       const pct = appState.scrollPositions[path];
       if (typeof pct === 'number' && pct > 0) {
         requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -458,9 +541,7 @@ ${bodyHtml}
           content.scrollTop = pct * max;
         }));
       }
-    } catch (err) {
-      showError(String(err));
-    }
+    } catch (err) { showError(String(err)); }
   }
   function showError(message) {
     empty.hidden = true;
@@ -471,17 +552,12 @@ ${bodyHtml}
   $('#btnOpen').addEventListener('click', openFile);
   $('#btnOpenEmpty').addEventListener('click', openFile);
 
-  // Window controls (min/max/close) are injected + wired by tauri-plugin-decorum
-  // — handles WM_NCHITTEST so Win11 Snap Layouts pop on maximize-button hover.
-
-  // ── Drag-drop (Tauri's onDragDropEvent gives real OS paths) ──
+  // ── Drag-drop ────────────────────────────────────────────────
   getCurrentWebview().onDragDropEvent((event) => {
     const t = event.payload.type;
-    if (t === 'enter' || t === 'over') {
-      veil.hidden = false;
-    } else if (t === 'leave') {
-      veil.hidden = true;
-    } else if (t === 'drop') {
+    if (t === 'enter' || t === 'over') veil.hidden = false;
+    else if (t === 'leave') veil.hidden = true;
+    else if (t === 'drop') {
       veil.hidden = true;
       const paths = event.payload.paths || [];
       if (paths.length > 0) loadFile(paths[0]);
@@ -507,7 +583,6 @@ ${bodyHtml}
   let scrollSaveTimer = null;
   content.addEventListener('scroll', () => {
     requestAnimationFrame(spy);
-    // Save scroll position per file (throttled at 250ms idle)
     if (!STATE.path) return;
     if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
     scrollSaveTimer = setTimeout(() => {
@@ -518,16 +593,13 @@ ${bodyHtml}
     }, 250);
   }, { passive: true });
 
-  // ── Recent files (rendered into empty state when present) ────
+  // ── Recent files list in empty state ─────────────────────────
   function renderRecents() {
-    // Remove any previous list before rebuilding
     document.querySelector('.recent-list')?.remove();
     const recents = (appState.recents || []).slice(0, 5);
     if (recents.length === 0) return;
-
     const inner = $('.empty-inner');
     if (!inner) return;
-
     const wrap = document.createElement('div');
     wrap.className = 'recent-list';
     wrap.innerHTML =
@@ -538,39 +610,26 @@ ${bodyHtml}
           `<span class="recent-path">${escapeHtml(dirname(p))}</span>` +
         `</button>`
       ).join('');
-
     inner.insertBefore(wrap, inner.firstChild);
-
     wrap.querySelectorAll('.recent-item').forEach((btn) =>
       btn.addEventListener('click', () => loadFile(btn.dataset.path)));
   }
 
   // ── Boot ─────────────────────────────────────────────────────
   (async function boot() {
-    // 1. Load persisted state first so the very first paint is correct
     await loadState();
-
-    // 2. Apply persisted last mode (before initial render)
     if (['raw', 'rendered', 'memo'].includes(appState.lastMode)) {
       STATE.mode = appState.lastMode;
       root.setAttribute('data-mode', STATE.mode);
     }
     syncMenuModes();
-
-    // 3. Initial render — empty state since STATE.content is ''
     render();
-
-    // 4. Inject recent files list into the empty state if we have any
     renderRecents();
-
-    // 5. Build-info badge in status bar (non-blocking)
     invoke('get_build_info').then((info) => {
       const badge = $('#stBuild');
       badge.textContent = `v${info.version}·${info.sha}`;
       badge.title = `Recto ${info.version} — commit ${info.sha}`;
     }).catch((e) => console.warn('get_build_info failed:', e));
-
-    // 6. Allow transitions on the next paint
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
   })();
 })();
