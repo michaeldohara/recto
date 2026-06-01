@@ -163,6 +163,39 @@
     return (tmp.textContent || '').split(/\s+/).filter(Boolean).length;
   }
 
+  // ── Pretty-printers for JSON / XML ───────────────────────────
+  function prettyJson(text) {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  }
+
+  // Small inline XML formatter — handles the 80% case (config files,
+  // API responses, RSS, SOAP). Not a full parser; doesn't preserve
+  // mixed-content whitespace perfectly. Tolerable for a viewer.
+  function prettyXml(xml) {
+    const trimmed = xml.trim();
+    // Force linebreaks between tags
+    const between = trimmed.replace(/>\s*</g, '>\n<');
+    const lines = between.split('\n');
+    const indentUnit = '  ';
+    let depth = 0;
+    const out = [];
+    for (let raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      // Closing tags: decrement first
+      const isClose = /^<\//.test(line);
+      // Self-closing or single-line element with both open + close + content
+      const isSelfClose = /\/>\s*$/.test(line) || /^<\?/.test(line) || /^<!--/.test(line) || /^<!\[CDATA\[/.test(line) || /^<!DOCTYPE/i.test(line);
+      const isFullElement = /^<([a-zA-Z][\w:-]*)([^>]*[^/])?>.*<\/\1>$/.test(line);
+
+      if (isClose) depth = Math.max(0, depth - 1);
+      out.push(indentUnit.repeat(depth) + line);
+      // Opening tag (not self-close, not full single-line element, not close): increment
+      if (!isClose && !isSelfClose && !isFullElement && /^<[^!?]/.test(line)) depth++;
+    }
+    return out.join('\n');
+  }
+
   // ── File-type dispatch table ─────────────────────────────────
   // Adding Phase 9 formats (json/xml) means adding entries here.
   function memoPage(state, html) {
@@ -185,6 +218,16 @@
       `<article class="article memo">${html}</article>` +
     `</div>`;
   }
+  // Build a syntax-highlighted code block. The .hljs class triggers
+  // the github/github-dark theme; .data-view wraps with our paper bg.
+  function highlightedBlock(language, source) {
+    return `<div class="data-view"><pre class="data-pre"><code class="language-${language} hljs">${escapeHtml(source)}</code></pre></div>`;
+  }
+  function parseErrorBlock(label, message, source) {
+    return `<div class="data-error"><span class="data-error-label">${escapeHtml(label)} parse error:</span> ${escapeHtml(message)}</div>` +
+           `<pre class="raw">${escapeHtml(source)}</pre>`;
+  }
+
   const FILE_TYPES = {
     markdown: {
       canRaw: true, canRendered: true, canMemo: true,
@@ -196,7 +239,14 @@
         if (mode === 'memo') return memoPage(state, html);
         return `<article class="article">${html}</article>`;
       },
-      wordCount(state) { return wordCountMarkdown(state.content); },
+      metricText(state) {
+        const w = wordCountMarkdown(state.content);
+        return `${w.toLocaleString()} words`;
+      },
+      readingTimeText(state) {
+        const w = wordCountMarkdown(state.content);
+        return Math.max(1, Math.round(w / 230)) + ' min read';
+      },
     },
     docx: {
       // .docx is binary — no useful source view, so Raw is disabled.
@@ -207,13 +257,58 @@
         if (mode === 'memo') return memoPage(state, html);
         return `<article class="article">${html}</article>`;
       },
-      wordCount(state) { return wordCountFromHtml(state.html || ''); },
+      metricText(state) {
+        const w = wordCountFromHtml(state.html || '');
+        return `${w.toLocaleString()} words`;
+      },
+      readingTimeText(state) {
+        const w = wordCountFromHtml(state.html || '');
+        return Math.max(1, Math.round(w / 230)) + ' min read';
+      },
+    },
+    json: {
+      // Data files: Raw = source as-stored. Rendered = pretty + highlighted.
+      // Memo doesn't apply (not a document).
+      canRaw: true, canRendered: true, canMemo: false,
+      defaultMode: 'rendered',
+      render(state, mode) {
+        if (mode === 'raw') return `<pre class="raw">${escapeHtml(state.content)}</pre>`;
+        try {
+          return highlightedBlock('json', prettyJson(state.content));
+        } catch (e) {
+          return parseErrorBlock('JSON', e.message || String(e), state.content);
+        }
+      },
+      metricText(state) {
+        const lines = (state.content.match(/\n/g) || []).length + 1;
+        return `${lines.toLocaleString()} lines · ${state.content.length.toLocaleString()} chars`;
+      },
+      readingTimeText() { return '—'; },
+    },
+    xml: {
+      canRaw: true, canRendered: true, canMemo: false,
+      defaultMode: 'rendered',
+      render(state, mode) {
+        if (mode === 'raw') return `<pre class="raw">${escapeHtml(state.content)}</pre>`;
+        try {
+          return highlightedBlock('xml', prettyXml(state.content));
+        } catch (e) {
+          return parseErrorBlock('XML', e.message || String(e), state.content);
+        }
+      },
+      metricText(state) {
+        const lines = (state.content.match(/\n/g) || []).length + 1;
+        return `${lines.toLocaleString()} lines · ${state.content.length.toLocaleString()} chars`;
+      },
+      readingTimeText() { return '—'; },
     },
   };
   function detectFileType(path) {
     const e = extOf(path);
     if (e === 'docx') return 'docx';
-    return 'markdown'; // default — markdown-it can render plaintext gracefully too
+    if (e === 'json') return 'json';
+    if (e === 'xml' || e === 'xsd' || e === 'xsl' || e === 'xslt' || e === 'svg' || e === 'rss' || e === 'atom') return 'xml';
+    return 'markdown';
   }
   function modeAvailable(fileType, mode) {
     const t = FILE_TYPES[fileType] || FILE_TYPES.markdown;
@@ -239,8 +334,18 @@
 
     content.innerHTML = typeDef.render(STATE, STATE.mode);
 
-    // Tag headings for TOC (only meaningful in non-raw modes)
-    if (STATE.mode !== 'raw') tagHeadings();
+    // Apply syntax highlighting to any hljs code blocks we just inserted
+    // (JSON/XML rendered blocks. Markdown code blocks intentionally left
+    // un-highlighted in v0.3.0 — their dark-on-cream styling is the design.)
+    if (window.hljs) {
+      content.querySelectorAll('pre code.hljs').forEach((el) => {
+        try { window.hljs.highlightElement(el); }
+        catch (e) { /* tolerate — fall back to escaped source */ }
+      });
+    }
+
+    // Tag headings for TOC (only meaningful in non-raw modes for prose docs)
+    if (STATE.mode !== 'raw' && (STATE.fileType === 'markdown' || STATE.fileType === 'docx')) tagHeadings();
     else headings = [];
 
     content.scrollTop = 0;
@@ -310,11 +415,10 @@
       return;
     }
     const typeDef = FILE_TYPES[STATE.fileType] || FILE_TYPES.markdown;
-    const words = typeDef.wordCount(STATE);
     stFile.textContent = basename(STATE.path);
     stFile.title = STATE.path;
-    stWords.textContent = words.toLocaleString() + ' words';
-    stRead.textContent = Math.max(1, Math.round(words / 230)) + ' min read';
+    stWords.textContent = typeDef.metricText(STATE);
+    stRead.textContent = typeDef.readingTimeText(STATE);
     stMode.textContent = capitalize(STATE.mode);
   }
 
@@ -512,6 +616,7 @@ ${bodyHtml}
         STATE.html = result.value || '';
         STATE.docxBuffer = bytes.buffer;
       } else {
+        // markdown, json, xml — all read as UTF-8 text
         const text = await invoke('read_markdown_file', { path });
         STATE.content = text;
         STATE.html = null;
