@@ -115,6 +115,44 @@ fn read_docx_bytes(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&bytes))
 }
 
+// Returns the current default-app ProgID for the given extension by
+// reading the HKCU UserChoice key Explorer writes when a user picks a
+// default. Returns None if no explicit choice has been made (Windows
+// then falls back to its own heuristics — typically the most recently
+// installed handler).
+//
+// We don't try to verify the UserChoice Hash field; we only need the
+// ProgID string so the frontend can substring-match for "recto" and
+// decide whether to show the set-default prompt.
+#[tauri::command]
+fn check_default_for_ext(ext: String) -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let path = format!(
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.{}\\UserChoice",
+        ext.trim_start_matches('.')
+    );
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(&path)
+        .ok()?
+        .get_value::<String, _>("ProgId")
+        .ok()
+}
+
+// Open Windows Settings to the Default Apps page, deep-linked to Recto
+// via the per-user registered-app URI parameter. Explorer falls back to
+// the general Default Apps page on Win11 builds that don't recognize
+// the parameter, so this always at least gets the user to the right
+// area of Settings.
+#[tauri::command]
+fn open_default_apps_settings() -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg("ms-settings:defaultapps?registeredAppUser=Recto")
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to open Settings: {e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -137,7 +175,9 @@ pub fn run() {
             save_app_state,
             pick_save_path,
             save_html_file,
-            read_docx_bytes
+            read_docx_bytes,
+            check_default_for_ext,
+            open_default_apps_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

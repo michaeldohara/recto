@@ -111,6 +111,41 @@
     <div class="drop-veil" id="dropVeil" hidden><div class="drop-card">Drop to open</div></div>
   </div>
 
+  <!-- ── Set-as-default modal ─────────────────────────────
+       Shown once on launch if Recto isn't the registered default
+       opener for any of its known file types AND the user hasn't
+       opted out. main.js owns the show/hide + persistence. -->
+  <div class="default-modal" id="defaultModal" hidden role="dialog"
+       aria-modal="true" aria-labelledby="defaultModalTitle">
+    <div class="default-card">
+      <h2 class="default-title" id="defaultModalTitle">Make Recto your default reader?</h2>
+      <p class="default-sub">
+        Recto isn't currently the default opener for these file types.
+        Setting it as default lets you double-click these files in File
+        Explorer to open them in Recto.
+      </p>
+      <ul class="default-list" id="defaultList"></ul>
+      <p class="default-note">
+        Windows requires you to confirm the change in Settings — we'll
+        open the right page; you click "Set default."
+      </p>
+      <div class="default-actions">
+        <button class="default-btn default-btn-ghost" id="defaultBtnDontAsk">
+          Don't ask again
+        </button>
+        <div class="default-actions-right">
+          <button class="default-btn default-btn-secondary" id="defaultBtnSkip">
+            Skip for now
+          </button>
+          <button class="default-btn default-btn-primary" id="defaultBtnOpen">
+            Open Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <!-- ── Status bar ────────────────────────────────────── -->
   <footer class="statusbar" id="statusbar">
     <div class="st-left">
