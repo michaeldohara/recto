@@ -13,7 +13,8 @@ The technical analysis below is still accurate about the *interfaces and registr
 Re-open this doc when:
 - Win11 update measurably changes the heuristics and our verb falls out of first-panel placement
 - Recto gets enough users that the inconsistent placement becomes a recurring support burden
-- The set-as-default-prompt alternative is built and we want to also tackle the "not-default user" path
+
+If we ever revisit, the sparse-package / IExplorerCommand approach below is **explicitly off the table** — the project owner's stance: this feature should not require a packaging-format change. Address via a different path (e.g., registry-only COM-registered IExplorerCommand, or a Win11 OS-level update once Microsoft refines the curation rules).
 
 ---
 

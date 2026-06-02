@@ -138,15 +138,12 @@ Tier 2 features (summary, translate, reading-level) come after 7e as small addit
 1. ~~Provider — Anthropic only, OpenAI only, or both?~~ ✅ **DECIDED: Anthropic-only for v1.**
    Multi-provider support (OpenAI, Gemini, Ollama, etc.) tracked separately — see [issue #8](https://github.com/michaeldohara/recto/issues/8). v1 ships with a single provider integration and a clean enough abstraction that adding a provider later is additive, not a rewrite.
 
-2. **Key storage backend:**
-   - **Tauri Stronghold** (encrypted file with passphrase) — most secure, but user has to set a passphrase the first time, which is friction
-   - **Windows Credential Manager** (`keyring` crate) — no passphrase, integrates with OS, less ceremony, slightly less hardened
-   - **Plain config file in app data** — easiest to implement, terrible idea, don't
-   - **My recommendation:** Credential Manager. The friction tradeoff of Stronghold isn't worth it for personal-use BYOK.
+2. ~~Key storage backend?~~ ✅ **DECIDED: Windows Credential Manager** via the `keyring` Rust crate.
+   Same backing store git/npm/VS Code use for stored auth. DPAPI-backed encryption keyed to the user's Windows login. Zero friction (no passphrase). Doing better requires hardware tokens or paid HSM infrastructure — not worth it for personal-use BYOK.
 
-3. **Default model:**
-   - For Anthropic: Claude Sonnet 4.5 / 4.6? Or Haiku for cost? User-configurable in settings?
-   - **My recommendation:** Default Sonnet 4.6 (matches what user uses elsewhere). Settings dropdown for switching to Haiku for cheaper / faster responses.
+3. ~~Default model?~~ ✅ **DECIDED: Latest Sonnet by default. Two-option dropdown — latest Sonnet and latest Haiku. No Opus.**
+   Rationale: Sonnet is the right default for quality on Recto's "explain / summarize / search in current doc" workloads. Haiku as the cost-conscious / faster option (~4× cheaper). Opus is overkill for a reading tool and the price gap (~5× Sonnet) outweighs the marginal quality bump for our use cases.
+   Implementation: settings UI shows two options (no version archaeology). Advanced field for pinning a specific model snapshot ID stays as power-user reveal, collapsed by default.
 
 4. ~~Cost cap UI~~ ✅ **DECIDED: estimate-labeled running indicator, no hard cap.**
    Status-bar shows running session cost as an *estimate* (with tooltip explaining it's based on published rates and may not reflect prompt caching / enterprise contracts / credits). No hard refuse — user's provider-side billing limits remain the source of truth.
@@ -154,10 +151,12 @@ Tier 2 features (summary, translate, reading-level) come after 7e as small addit
 5. ~~Multi-doc context in v1?~~ ✅ **DECIDED: single-doc only for v1.**
    Multi-doc context (asking across recents, asking across a folder) needs chunking + retrieval + likely embeddings. Real complexity step that earns its own phase post-1.0 — separate issue when we get there.
 
-6. **Monetization tie-in:**
-   - You said in our monetization talk that v1 doesn't go paid. Does that hold for AI features?
-   - Could AI features eventually be a "Pro" gate (free version views, Pro version connects AI)?
-   - **My recommendation:** AI stays free + BYOK in v1.x. The BYOK model means we pay nothing per user; gating it behind Pro fights the "user brings their own value" frame. If you eventually want a paid tier, gate something OTHER than AI (e.g., themes, sync, multi-window).
+6. ~~Monetization tie-in?~~ ✅ **DECIDED: Self-keyed AI is free. Curated (we-host) AI is paid.**
+   Two AI tiers, cleanly separated:
+   - **Free tier (BYOK):** User pastes their own Anthropic key, all AI features unlock. We pay $0 per user; they pay Anthropic directly.
+   - **Paid tier ("Recto AI"):** We proxy through our own Anthropic account. User doesn't manage a key, doesn't sign up with Anthropic, just toggles it on and pays a flat monthly fee. We pay Anthropic per token; we price above margin.
+   Value separation is honest — the paid tier is for users who don't want to manage API keys, not a paywall on functionality. Same AI features either way; the difference is who deals with the billing relationship.
+   See [`MONETIZATION-PLAN.md`](MONETIZATION-PLAN.md) for the broader paid-tier scope this fits into.
 
 ## What I'd want from you next
 
