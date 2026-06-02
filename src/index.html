@@ -64,6 +64,10 @@
         <button class="mi" data-act="export-html" role="menuitem">
           <span class="mi-check"></span><span class="mi-label">Export HTML…</span><span class="mi-kbd"></span>
         </button>
+        <div class="mi-div"></div>
+        <button class="mi" data-act="set-default" role="menuitem">
+          <span class="mi-check"></span><span class="mi-label">Set as default app…</span><span class="mi-kbd"></span>
+        </button>
       </div>
       <!-- Window controls (min/max/close) are injected by tauri-plugin-decorum
            into this slot at runtime; the explicit placeholder ensures decorum
@@ -119,7 +123,7 @@
        aria-modal="true" aria-labelledby="defaultModalTitle">
     <div class="default-card">
       <h2 class="default-title" id="defaultModalTitle">Make Recto your default reader?</h2>
-      <p class="default-sub">
+      <p class="default-sub" id="defaultSub">
         Recto isn't currently the default opener for these file types.
         Setting it as default lets you double-click these files in File
         Explorer to open them in Recto.
