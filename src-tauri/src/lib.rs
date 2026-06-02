@@ -140,14 +140,27 @@ fn check_default_for_ext(ext: String) -> Option<String> {
 }
 
 // Open Windows Settings to the Default Apps page, deep-linked to Recto
-// via the per-user registered-app URI parameter. Explorer falls back to
-// the general Default Apps page on Win11 builds that don't recognize
-// the parameter, so this always at least gets the user to the right
-// area of Settings.
+// via the per-user registered-app URI parameter. Win11 falls back to the
+// general Default Apps page if it doesn't recognize the param.
+//
+// Why `cmd /c start "" <uri>` instead of `explorer.exe <uri>`:
+// explorer.exe treats its arg as a filesystem path, so an `ms-settings:`
+// URI silently fails and opens the user's Documents folder instead.
+// `start` is the shell command that knows how to dispatch URIs to their
+// registered protocol handlers — same path Win+R or the Start menu uses.
+//
+// The empty "" is required: `start` treats the FIRST quoted arg as a
+// window title, so `start "ms-settings:..."` would do nothing useful.
+// Passing an empty title first makes the URI the actual command.
 #[tauri::command]
 fn open_default_apps_settings() -> Result<(), String> {
-    std::process::Command::new("explorer.exe")
-        .arg("ms-settings:defaultapps?registeredAppUser=Recto")
+    std::process::Command::new("cmd")
+        .args([
+            "/c",
+            "start",
+            "",
+            "ms-settings:defaultapps?registeredAppUser=Recto",
+        ])
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Failed to open Settings: {e}"))
