@@ -771,6 +771,13 @@ ${bodyHtml}
   }
 
   $('#defaultBtnOpen').addEventListener('click', async () => {
+    // Copy "Recto" to clipboard so the user can paste it into the
+    // Default Apps search box. Win11 22H2+ removed support for the
+    // ms-settings:defaultapps?registeredAppUser=... deep-link, so
+    // the URI lands on the general page; the clipboard shortcut
+    // saves the user from hunting for Recto in the app list.
+    try { await navigator.clipboard.writeText('Recto'); }
+    catch (err) { console.warn('clipboard.writeText failed:', err); }
     try { await invoke('open_default_apps_settings'); }
     catch (err) { console.warn('open_default_apps_settings failed:', err); }
     hideDefaultModal();
