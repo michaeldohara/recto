@@ -505,6 +505,8 @@
       toggleMenu(false); exportPdf();
     } else if (item.dataset.act === 'export-html') {
       toggleMenu(false); exportHtml();
+    } else if (item.dataset.act === 'set-default') {
+      toggleMenu(false); openDefaultAppsModalFromMenu();
     }
   });
 
@@ -758,9 +760,19 @@ ${bodyHtml}
   function showDefaultModal(notDefaultFor) {
     const modal = $('#defaultModal');
     const list = $('#defaultList');
-    list.innerHTML = notDefaultFor
-      .map((r) => `<li>.${escapeHtml(r.ext)}</li>`)
-      .join('');
+    const sub = $('#defaultSub');
+    if (notDefaultFor.length === 0) {
+      // Triggered from the menu when Recto is already default everywhere
+      sub.textContent = 'Recto is already your default opener for all supported file types. Open Settings if you want to change anything.';
+      list.hidden = true;
+      list.innerHTML = '';
+    } else {
+      sub.textContent = "Recto isn't currently the default opener for these file types. Setting it as default lets you double-click these files in File Explorer to open them in Recto.";
+      list.hidden = false;
+      list.innerHTML = notDefaultFor
+        .map((r) => `<li>.${escapeHtml(r.ext)}</li>`)
+        .join('');
+    }
     modal.hidden = false;
     // Push focus to the primary action so Enter accepts the suggested path
     requestAnimationFrame(() => $('#defaultBtnOpen').focus());
@@ -770,16 +782,29 @@ ${bodyHtml}
     $('#defaultModal').hidden = true;
   }
 
-  $('#defaultBtnOpen').addEventListener('click', async () => {
-    // Copy "Recto" to clipboard so the user can paste it into the
-    // Default Apps search box. Win11 22H2+ removed support for the
-    // ms-settings:defaultapps?registeredAppUser=... deep-link, so
-    // the URI lands on the general page; the clipboard shortcut
-    // saves the user from hunting for Recto in the app list.
+  // Shared by the modal's Open Settings button AND the 3-dot menu's
+  // "Set as default app…" item. Copy "Recto" to clipboard so the user
+  // can paste it into the Default Apps search box — Win11 22H2+ removed
+  // the registeredAppUser deep-link, so the URI lands on the general
+  // page and the clipboard shortcut saves the user from hunting.
+  async function launchDefaultAppsSettings() {
     try { await navigator.clipboard.writeText('Recto'); }
     catch (err) { console.warn('clipboard.writeText failed:', err); }
     try { await invoke('open_default_apps_settings'); }
     catch (err) { console.warn('open_default_apps_settings failed:', err); }
+  }
+
+  // Menu-trigger entry point: re-evaluate current default state and
+  // show the modal so the user gets the full explanation + the same
+  // primary action even when invoked outside first launch.
+  async function openDefaultAppsModalFromMenu() {
+    const results = await checkDefaults();
+    const notDefaultFor = results.filter((r) => !rectoOwns(r.progId));
+    showDefaultModal(notDefaultFor);
+  }
+
+  $('#defaultBtnOpen').addEventListener('click', async () => {
+    await launchDefaultAppsSettings();
     hideDefaultModal();
   });
   $('#defaultBtnSkip').addEventListener('click', () => {
