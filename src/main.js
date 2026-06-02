@@ -19,6 +19,18 @@
 (function () {
   "use strict";
 
+  // ── Console hygiene ──────────────────────────────────────────
+  // tauri-plugin-decorum logs "DECORUM: Controls already exist.
+  // Skipping creation." every load because we also call
+  // create_overlay_titlebar() from Rust setup (the call we actually
+  // need for Win11 Snap Layouts). The dupe log is harmless but
+  // clutters DevTools — drop it before anything else runs.
+  const _origLog = console.log;
+  console.log = function (...args) {
+    if (typeof args[0] === 'string' && args[0].startsWith('DECORUM:')) return;
+    return _origLog.apply(console, args);
+  };
+
   const $ = (s, r = document) => r.querySelector(s);
   const { invoke, convertFileSrc } = window.__TAURI__.core;
   const { getCurrentWebview } = window.__TAURI__.webview;
@@ -47,6 +59,7 @@
     lastMode: 'rendered',
     recents: [],
     scrollPositions: {},
+    setDefaultPromptDismissed: false,
   };
 
   root.classList.add('no-anim');
@@ -115,6 +128,7 @@
         if (['raw', 'rendered', 'memo'].includes(s.lastMode)) appState.lastMode = s.lastMode;
         if (Array.isArray(s.recents)) appState.recents = s.recents.filter((p) => typeof p === 'string').slice(0, 10);
         if (s.scrollPositions && typeof s.scrollPositions === 'object') appState.scrollPositions = s.scrollPositions;
+        if (typeof s.setDefaultPromptDismissed === 'boolean') appState.setDefaultPromptDismissed = s.setDefaultPromptDismissed;
       }
     } catch (e) { console.warn('load_app_state failed:', e); }
   }
@@ -720,6 +734,68 @@ ${bodyHtml}
       btn.addEventListener('click', () => loadFile(btn.dataset.path)));
   }
 
+  // ── Set-as-default prompt ────────────────────────────────────
+  // The extensions Recto declares fileAssociations for (kept in sync
+  // with tauri.conf.json). Variant extensions (e.g. xsd, xsl) share
+  // the same activation behavior on Windows so checking the canonical
+  // member of each group is sufficient.
+  const KNOWN_EXTS = ['md', 'markdown', 'mdx', 'docx', 'json', 'xml'];
+
+  async function checkDefaults() {
+    const results = await Promise.all(
+      KNOWN_EXTS.map(async (ext) => ({
+        ext,
+        progId: await invoke('check_default_for_ext', { ext }).catch(() => null),
+      }))
+    );
+    return results;
+  }
+
+  function rectoOwns(progId) {
+    return typeof progId === 'string' && /recto/i.test(progId);
+  }
+
+  function showDefaultModal(notDefaultFor) {
+    const modal = $('#defaultModal');
+    const list = $('#defaultList');
+    list.innerHTML = notDefaultFor
+      .map((r) => `<li>.${escapeHtml(r.ext)}</li>`)
+      .join('');
+    modal.hidden = false;
+    // Push focus to the primary action so Enter accepts the suggested path
+    requestAnimationFrame(() => $('#defaultBtnOpen').focus());
+  }
+
+  function hideDefaultModal() {
+    $('#defaultModal').hidden = true;
+  }
+
+  $('#defaultBtnOpen').addEventListener('click', async () => {
+    try { await invoke('open_default_apps_settings'); }
+    catch (err) { console.warn('open_default_apps_settings failed:', err); }
+    hideDefaultModal();
+  });
+  $('#defaultBtnSkip').addEventListener('click', () => {
+    // Skip this launch only; re-evaluate next boot
+    hideDefaultModal();
+  });
+  $('#defaultBtnDontAsk').addEventListener('click', () => {
+    appState.setDefaultPromptDismissed = true;
+    scheduleSave();
+    hideDefaultModal();
+  });
+
+  async function maybeShowSetDefaultPrompt() {
+    if (appState.setDefaultPromptDismissed) return;
+    const results = await checkDefaults();
+    const notDefaultFor = results.filter((r) => !rectoOwns(r.progId));
+    // If Recto already owns at least one extension, treat that as an
+    // implicit acceptance — no nag for the remaining types.
+    if (notDefaultFor.length === results.length) {
+      showDefaultModal(notDefaultFor);
+    }
+  }
+
   // ── Boot ─────────────────────────────────────────────────────
   (async function boot() {
     await loadState();
@@ -745,5 +821,9 @@ ${bodyHtml}
       badge.title = `Recto ${info.version} — commit ${info.sha}`;
     }).catch((e) => console.warn('get_build_info failed:', e));
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
+
+    // Defer the set-default check past first paint so the window
+    // becomes interactive before the modal appears.
+    setTimeout(() => { maybeShowSetDefaultPrompt().catch(() => {}); }, 600);
   })();
 })();
