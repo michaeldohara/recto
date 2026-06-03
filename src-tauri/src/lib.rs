@@ -115,52 +115,67 @@ fn read_docx_bytes(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&bytes))
 }
 
-// Returns the current default-app ProgID for the given extension by
-// reading the HKCU UserChoice key Explorer writes when a user picks a
-// default. Returns None if no explicit choice has been made (Windows
-// then falls back to its own heuristics — typically the most recently
-// installed handler).
+// Returns whether Recto is the registered default opener for the given
+// extension. Two-step lookup:
+//   1. Read HKCU\...\FileExts\.<ext>\UserChoice\ProgId to get the
+//      ProgID the user chose (or Windows defaulted to).
+//   2. Resolve that ProgID's shell\open\command in HKCU\Software\Classes
+//      (falls back to HKCR for system-wide ProgIDs), check if the
+//      command path contains "recto.exe".
 //
-// We don't try to verify the UserChoice Hash field; we only need the
-// ProgID string so the frontend can substring-match for "recto" and
-// decide whether to show the set-default prompt.
+// Why not substring-match the ProgID name itself: Tauri-generated
+// ProgIDs use the friendly `name` from fileAssociations (e.g.
+// "Markdown", "Word", "JSON"), which don't contain "recto". The only
+// reliable signal is what binary the command actually invokes.
 #[tauri::command]
-fn check_default_for_ext(ext: String) -> Option<String> {
-    use winreg::enums::HKEY_CURRENT_USER;
+fn check_recto_is_default(ext: String) -> bool {
+    use winreg::enums::{HKEY_CLASSES_ROOT, HKEY_CURRENT_USER};
     use winreg::RegKey;
-    let path = format!(
+    let user_choice_path = format!(
         "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.{}\\UserChoice",
         ext.trim_start_matches('.')
     );
-    RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey(&path)
-        .ok()?
-        .get_value::<String, _>("ProgId")
+    let prog_id: String = match RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(&user_choice_path)
         .ok()
+        .and_then(|k| k.get_value("ProgId").ok())
+    {
+        Some(p) => p,
+        None => return false,
+    };
+    let cmd: Option<String> = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(format!("Software\\Classes\\{}\\shell\\open\\command", prog_id))
+        .ok()
+        .and_then(|k| k.get_value("").ok())
+        .or_else(|| {
+            RegKey::predef(HKEY_CLASSES_ROOT)
+                .open_subkey(format!("{}\\shell\\open\\command", prog_id))
+                .ok()
+                .and_then(|k| k.get_value("").ok())
+        });
+    cmd.map(|c| c.to_lowercase().contains("recto.exe")).unwrap_or(false)
 }
 
-// Open Windows Settings to the Default Apps page, deep-linked to Recto
-// via the per-user registered-app URI parameter. Win11 falls back to the
-// general Default Apps page if it doesn't recognize the param.
+// Open Windows Settings to the Default Apps page.
+//
+// Why the bare URI (no ?registeredAppUser=Recto deep-link): Win11 22H2+
+// actively errors and exits Settings when handed a deep-link param it
+// can't resolve. Previous versions tried to deep-link to Recto's app
+// page; the window flashed open and closed immediately. The general
+// page is the only reliable target now — paired with copying "Recto"
+// to the clipboard in the frontend so the user can paste it into the
+// search box at the top of the Default Apps list.
 //
 // Why `cmd /c start "" <uri>` instead of `explorer.exe <uri>`:
 // explorer.exe treats its arg as a filesystem path, so an `ms-settings:`
 // URI silently fails and opens the user's Documents folder instead.
-// `start` is the shell command that knows how to dispatch URIs to their
-// registered protocol handlers — same path Win+R or the Start menu uses.
-//
-// The empty "" is required: `start` treats the FIRST quoted arg as a
-// window title, so `start "ms-settings:..."` would do nothing useful.
-// Passing an empty title first makes the URI the actual command.
+// `start` is the shell command that dispatches URIs to their registered
+// protocol handlers — same path Win+R or the Start menu uses. The empty
+// "" is required: `start` treats the FIRST quoted arg as a window title.
 #[tauri::command]
 fn open_default_apps_settings() -> Result<(), String> {
     std::process::Command::new("cmd")
-        .args([
-            "/c",
-            "start",
-            "",
-            "ms-settings:defaultapps?registeredAppUser=Recto",
-        ])
+        .args(["/c", "start", "", "ms-settings:defaultapps"])
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Failed to open Settings: {e}"))
@@ -189,7 +204,7 @@ pub fn run() {
             pick_save_path,
             save_html_file,
             read_docx_bytes,
-            check_default_for_ext,
+            check_recto_is_default,
             open_default_apps_settings
         ])
         .run(tauri::generate_context!())
