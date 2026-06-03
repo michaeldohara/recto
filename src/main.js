@@ -744,17 +744,17 @@ ${bodyHtml}
   const KNOWN_EXTS = ['md', 'markdown', 'mdx', 'docx', 'json', 'xml'];
 
   async function checkDefaults() {
+    // Rust now resolves the UserChoice ProgID -> shell command path and
+    // returns true only if recto.exe is the registered handler. The
+    // previous "ProgID contains 'recto'" check was wrong: Tauri assigns
+    // human-friendly ProgIDs ("Markdown", "Word", etc) that never match.
     const results = await Promise.all(
       KNOWN_EXTS.map(async (ext) => ({
         ext,
-        progId: await invoke('check_default_for_ext', { ext }).catch(() => null),
+        isRecto: await invoke('check_recto_is_default', { ext }).catch(() => false),
       }))
     );
     return results;
-  }
-
-  function rectoOwns(progId) {
-    return typeof progId === 'string' && /recto/i.test(progId);
   }
 
   function showDefaultModal(notDefaultFor) {
@@ -799,7 +799,7 @@ ${bodyHtml}
   // primary action even when invoked outside first launch.
   async function openDefaultAppsModalFromMenu() {
     const results = await checkDefaults();
-    const notDefaultFor = results.filter((r) => !rectoOwns(r.progId));
+    const notDefaultFor = results.filter((r) => !r.isRecto);
     showDefaultModal(notDefaultFor);
   }
 
@@ -820,7 +820,7 @@ ${bodyHtml}
   async function maybeShowSetDefaultPrompt() {
     if (appState.setDefaultPromptDismissed) return;
     const results = await checkDefaults();
-    const notDefaultFor = results.filter((r) => !rectoOwns(r.progId));
+    const notDefaultFor = results.filter((r) => !r.isRecto);
     // If Recto already owns at least one extension, treat that as an
     // implicit acceptance — no nag for the remaining types.
     if (notDefaultFor.length === results.length) {
