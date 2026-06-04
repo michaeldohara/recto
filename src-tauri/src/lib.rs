@@ -158,26 +158,17 @@ fn check_recto_is_default(ext: String) -> bool {
 
 // Open Windows Settings to the Default Apps page.
 //
-// Why the bare URI (no ?registeredAppUser=Recto deep-link): Win11 22H2+
-// actively errors and exits Settings when handed a deep-link param it
-// can't resolve. Previous versions tried to deep-link to Recto's app
-// page; the window flashed open and closed immediately. The general
-// page is the only reliable target now — paired with copying "Recto"
-// to the clipboard in the frontend so the user can paste it into the
-// search box at the top of the Default Apps list.
-//
-// Why `cmd /c start "" <uri>` instead of `explorer.exe <uri>`:
-// explorer.exe treats its arg as a filesystem path, so an `ms-settings:`
-// URI silently fails and opens the user's Documents folder instead.
-// `start` is the shell command that dispatches URIs to their registered
-// protocol handlers — same path Win+R or the Start menu uses. The empty
-// "" is required: `start` treats the FIRST quoted arg as a window title.
+// We use `open::that_detached` which wraps Win32 ShellExecuteW — the
+// same API the Start menu and Win+R dialog use to dispatch URIs to
+// their registered protocol handlers. Earlier versions used
+// `cmd /c start "" <uri>`, which works for browser URLs but is flaky
+// for UWP / system-app URIs like `ms-settings:` — the transient cmd
+// window interferes with URI handoff and Settings flash-opens then
+// closes immediately. ShellExecuteW invokes the handler in the
+// foreground shell context, no transient cmd window, no flash.
 #[tauri::command]
 fn open_default_apps_settings() -> Result<(), String> {
-    std::process::Command::new("cmd")
-        .args(["/c", "start", "", "ms-settings:defaultapps"])
-        .spawn()
-        .map(|_| ())
+    open::that_detached("ms-settings:defaultapps")
         .map_err(|e| format!("Failed to open Settings: {e}"))
 }
 
