@@ -121,6 +121,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .btn-menu svg { width: 16px; height: 16px; fill: currentColor; }
 .btn-menu:hover { background: rgba(var(--shadow),0.05); color: var(--ink); }
 
+/* Icon-only titlebar buttons (refresh, future siblings) */
+.btn-icon {
+  width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+  color: var(--ink-2); transition: background .14s, color .14s;
+}
+.btn-icon svg { width: 15px; height: 15px; fill: currentColor; }
+.btn-icon:hover:not(:disabled) { background: rgba(var(--shadow),0.05); color: var(--ink); }
+.btn-icon:disabled { opacity: 0.32; cursor: not-allowed; }
+/* Subtle spin animation when refreshing — added/removed by main.js */
+.btn-icon.spinning svg { animation: refreshSpin 600ms ease; }
+@keyframes refreshSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
 /* Menu */
 .menu {
   position: absolute; top: calc(var(--tb-h) - 2px); right: 8px; width: 216px; z-index: 40;
@@ -490,6 +505,79 @@ button#decorum-tb-close:active { background: #C42B1C; }
     margin: 1in;
   }
 }
+
+/* ── Reload toast + banner ───────────────────────────────────────
+   Toast appears bottom-right when an external save is detected and
+   the user has scrolled into the doc. Banner appears top of stage
+   when the watched file is removed/renamed. Both non-modal.
+   ──────────────────────────────────────────────────────────────── */
+.reload-toast {
+  position: fixed;
+  bottom: calc(var(--st-h) + 14px);
+  right: 14px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 9px 9px 9px 14px;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(var(--shadow), 0.32);
+  font-size: 12.5px;
+  animation: reloadToastIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes reloadToastIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reload-toast-label { line-height: 1; }
+.reload-toast-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+.reload-toast-btn:hover { filter: brightness(1.08); }
+.reload-toast-btn:focus-visible { outline: 2px solid var(--paper); outline-offset: 1px; }
+
+.reload-banner {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line-chrome);
+  border-left: 3px solid var(--accent);
+  padding: 8px 8px 8px 14px;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(var(--shadow), 0.18);
+  font-size: 12.5px;
+  color: var(--ink);
+  max-width: calc(100% - 32px);
+  animation: reloadToastIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.reload-banner-text { line-height: 1.4; }
+.reload-banner-close {
+  background: transparent;
+  border: none;
+  color: var(--ink-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.reload-banner-close:hover { color: var(--ink); }
 
 /* ── Set-as-default modal ────────────────────────────────────────
    Full-screen overlay shown once on launch when Recto isn't the

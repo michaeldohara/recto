@@ -31,6 +31,12 @@
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.2c0-.66.54-1.2 1.2-1.2h3l1.3 1.6h5.1c.66 0 1.2.54 1.2 1.2v6c0 .66-.54 1.2-1.2 1.2H3.2c-.66 0-1.2-.54-1.2-1.2z"/></svg>
         Open
       </button>
+      <button class="btn-icon" id="btnRefresh" aria-label="Refresh" title="Refresh (F5)" disabled>
+        <!-- Circular refresh / reload arrow -->
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M13.5 8a5.5 5.5 0 11-1.6-3.88L13.5 2.5V6.5h-4l1.41-1.41A3.75 3.75 0 1011.75 8h1.75z" fill="currentColor"/>
+        </svg>
+      </button>
       <button class="btn-menu" id="btnMenu" aria-label="Menu" aria-haspopup="true" title="Menu">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3.2" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="12.8" r="1.4"/></svg>
       </button>
@@ -113,6 +119,25 @@
 
     <!-- Drop overlay -->
     <div class="drop-veil" id="dropVeil" hidden><div class="drop-card">Drop to open</div></div>
+  </div>
+
+  <!-- ── Reload toast ─────────────────────────────────────
+       Shown when the open file changes on disk AND the user has
+       scrolled away from the top of the document. Silent reload
+       happens directly when they're at the top — no toast in that
+       case. Click Reload → triggers refresh; toast dismisses on
+       reload or on a new file load. -->
+  <div class="reload-toast" id="reloadToast" hidden role="status" aria-live="polite">
+    <span class="reload-toast-label">File updated</span>
+    <button class="reload-toast-btn" id="reloadToastBtn" type="button">Reload</button>
+  </div>
+
+  <!-- ── File-missing banner ──────────────────────────────
+       Shown when the watched file is removed or renamed externally.
+       Non-modal — user keeps viewing the last loaded version. -->
+  <div class="reload-banner" id="reloadBanner" hidden role="status">
+    <span class="reload-banner-text">This file no longer exists on disk &mdash; showing the last loaded version.</span>
+    <button class="reload-banner-close" id="reloadBannerClose" type="button" aria-label="Dismiss">&times;</button>
   </div>
 
   <!-- ── Set-as-default modal ─────────────────────────────
