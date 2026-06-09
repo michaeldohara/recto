@@ -1,6 +1,15 @@
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_decorum::WebviewWindowExt;
+
+use std::sync::Mutex;
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+
+// Holds the currently-active file watcher (or None when no file is open
+// or watching has been explicitly stopped). Wrapped in Mutex because
+// notify's RecommendedWatcher is not Sync and Tauri commands may run
+// concurrently. Dropping the Option's contents stops the OS-level watch.
+struct WatcherState(Mutex<Option<RecommendedWatcher>>);
 
 // Read a UTF-8 text file from disk and return its contents.
 // Used for loading .md files dropped on the window or chosen via File → Open.
@@ -156,6 +165,67 @@ fn check_recto_is_default(ext: String) -> bool {
     cmd.map(|c| c.to_lowercase().contains("recto.exe")).unwrap_or(false)
 }
 
+// Start watching a file for external changes. Replaces any previously-
+// installed watcher (callers don't need to call unwatch_file first).
+// Fires the Tauri "file-changed" event on the frontend whenever notify
+// reports any event for the path — debouncing + atomic-save handling
+// happens in JS where it can coordinate with UI state.
+#[tauri::command]
+fn watch_file(
+    path: String,
+    state: tauri::State<'_, WatcherState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    // Drop the previous watcher first — releases the OS handle so the
+    // new one can claim the same path cleanly if we're re-watching it.
+    {
+        let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+        *guard = None;
+    }
+
+    let app_clone = app.clone();
+    let path_clone = path.clone();
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        match res {
+            Ok(_event) => {
+                // Don't filter event kinds here — atomic saves produce
+                // Remove + Create rather than Modify, and we want both.
+                // The frontend debounces + re-stats to figure out what
+                // actually happened.
+                let _ = app_clone.emit("file-changed", &path_clone);
+            }
+            Err(e) => eprintln!("notify watch error: {e}"),
+        }
+    })
+    .map_err(|e| format!("create watcher: {e}"))?;
+
+    watcher
+        .watch(std::path::Path::new(&path), RecursiveMode::NonRecursive)
+        .map_err(|e| format!("watch {path}: {e}"))?;
+
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    *guard = Some(watcher);
+    Ok(())
+}
+
+// Stop the currently-installed watcher (if any). Called when closing
+// a file or when shutting down. Idempotent — safe to call with no
+// active watcher.
+#[tauri::command]
+fn unwatch_file(state: tauri::State<'_, WatcherState>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    *guard = None;
+    Ok(())
+}
+
+// Check whether a file still exists at the given path. Used by the
+// frontend after a "file-changed" event to distinguish a normal save
+// (file exists, reload) from a delete/rename (show banner).
+#[tauri::command]
+fn file_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
+}
+
 // Open Windows Settings to the Default Apps page.
 //
 // We use `open::that_detached` which wraps Win32 ShellExecuteW — the
@@ -178,6 +248,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_decorum::init())
+        .manage(WatcherState(Mutex::new(None)))
         .setup(|app| {
             // Decorum injects its own min/max/close buttons into the main
             // window's titlebar so Win11 Snap Layouts work on hover.
@@ -196,7 +267,10 @@ pub fn run() {
             save_html_file,
             read_docx_bytes,
             check_recto_is_default,
-            open_default_apps_settings
+            open_default_apps_settings,
+            watch_file,
+            unwatch_file,
+            file_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -34,6 +34,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const { invoke, convertFileSrc } = window.__TAURI__.core;
   const { getCurrentWebview } = window.__TAURI__.webview;
+  const { listen } = window.__TAURI__.event;
 
   // ── Parser (markdown) ────────────────────────────────────────
   const md = window.markdownit({
@@ -620,7 +621,17 @@ ${bodyHtml}
       if (path) await loadFile(path);
     } catch (err) { showError(String(err)); }
   }
-  async function loadFile(path) {
+  // loadFile is the canonical "read from disk into STATE + render" path.
+  // Used by openFile (user picks via dialog), drag-drop, recents list,
+  // get_initial_file (Open-with-Recto), AND reloadCurrent (refresh).
+  //
+  // opts.scrollRestore controls scroll-position behavior after render:
+  //   - null / unset → restore from appState.scrollPositions[path] (cross-
+  //     session memory; used on fresh opens)
+  //   - { anchor }   → restore to a captured anchor object from
+  //     captureScrollAnchor() before this load. Used on refresh + auto-
+  //     reload so users don't lose their reading place when content shifts.
+  async function loadFile(path, opts = {}) {
     try {
       const fileType = detectFileType(path);
 
@@ -650,19 +661,160 @@ ${bodyHtml}
       syncMenuModes();
       render();
 
-      // Recents (dedup, cap 10)
-      appState.recents = [path, ...appState.recents.filter((p) => p !== path)].slice(0, 10);
-      scheduleSave();
+      // Refresh button: enabled whenever a file is loaded
+      const btnRefresh = $('#btnRefresh');
+      if (btnRefresh) btnRefresh.disabled = false;
 
-      // Restore previous reading position
-      const pct = appState.scrollPositions[path];
-      if (typeof pct === 'number' && pct > 0) {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          const max = Math.max(0, content.scrollHeight - content.clientHeight);
-          content.scrollTop = pct * max;
-        }));
+      // Recents (dedup, cap 10) — only on fresh opens, not refresh
+      if (!opts.scrollRestore) {
+        appState.recents = [path, ...appState.recents.filter((p) => p !== path)].slice(0, 10);
+        scheduleSave();
       }
+
+      // Scroll restoration: anchor (refresh / auto-reload) takes priority;
+      // otherwise restore from cross-session memory (fresh open).
+      if (opts.scrollRestore && opts.scrollRestore.anchor) {
+        requestAnimationFrame(() => requestAnimationFrame(() =>
+          restoreScrollAnchor(opts.scrollRestore.anchor)));
+      } else {
+        const pct = appState.scrollPositions[path];
+        if (typeof pct === 'number' && pct > 0) {
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            const max = Math.max(0, content.scrollHeight - content.clientHeight);
+            content.scrollTop = pct * max;
+          }));
+        }
+      }
+
+      // Start watching this file for external changes. Replaces any
+      // previous watcher (the Rust side handles dropping the old one).
+      // Errors are non-fatal — manual refresh still works.
+      try { await invoke('watch_file', { path }); }
+      catch (err) { console.warn('watch_file failed:', err); }
     } catch (err) { showError(String(err)); }
+  }
+
+  // ── Scroll anchor (preserve reading place across reload) ─────
+  // Captures the heading currently at (or just below) the viewport top
+  // so we can scroll back to it after content re-renders. More robust
+  // than scroll-percentage when paragraphs are added or removed above
+  // the user's current reading position.
+  function captureScrollAnchor() {
+    if (!hasContent()) return null;
+    const cTop = content.getBoundingClientRect().top;
+    const headings = [...content.querySelectorAll('h1, h2, h3, h4, h5, h6')];
+    if (headings.length === 0) {
+      // No headings to anchor to — fall back to scroll percentage
+      const max = Math.max(1, content.scrollHeight - content.clientHeight);
+      return { pct: content.scrollTop / max };
+    }
+    // Prefer a heading visible in or just past the top of the viewport
+    for (const h of headings) {
+      const top = h.getBoundingClientRect().top - cTop;
+      if (top >= -2 && top <= 200) {
+        return { headingText: h.textContent, tag: h.tagName };
+      }
+      if (top > 200) break;
+    }
+    // No heading visible at top — fall back to the last heading scrolled past,
+    // tracking the offset so we restore close to where the user actually was
+    let last = null;
+    let lastTop = 0;
+    for (const h of headings) {
+      const top = h.getBoundingClientRect().top - cTop;
+      if (top < 0) { last = h; lastTop = top; }
+      else break;
+    }
+    if (last) return { headingText: last.textContent, tag: last.tagName, offset: -lastTop };
+    // No heading is at or above viewport top — caller is above the first heading
+    return { pct: 0 };
+  }
+
+  function restoreScrollAnchor(anchor) {
+    if (!anchor) return;
+    if (anchor.headingText) {
+      const headings = [...content.querySelectorAll('h1, h2, h3, h4, h5, h6')];
+      const match = headings.find((h) =>
+        h.tagName === anchor.tag && h.textContent === anchor.headingText);
+      if (match) {
+        const top = match.getBoundingClientRect().top
+                  - content.getBoundingClientRect().top
+                  + content.scrollTop;
+        content.scrollTop = Math.max(0, top + (anchor.offset || 0));
+        return;
+      }
+    }
+    if (typeof anchor.pct === 'number') {
+      const max = Math.max(0, content.scrollHeight - content.clientHeight);
+      content.scrollTop = anchor.pct * max;
+    }
+  }
+
+  // ── Refresh / live reload ────────────────────────────────────
+  // reloadCurrent re-reads the open file from disk and re-renders.
+  // Used by:
+  //   - Manual refresh button + F5 (always reloads)
+  //   - Toast "Reload" button (user-driven)
+  //   - Silent auto-reload when user is at the top of the doc
+  async function reloadCurrent() {
+    if (!STATE.path) return;
+    const anchor = captureScrollAnchor();
+    const btn = $('#btnRefresh');
+    if (btn) {
+      btn.classList.add('spinning');
+      setTimeout(() => btn.classList.remove('spinning'), 600);
+    }
+    hideReloadToast();
+    hideReloadBanner();
+    await loadFile(STATE.path, { scrollRestore: { anchor } });
+  }
+
+  function showReloadToast() {
+    const t = $('#reloadToast');
+    if (t) t.hidden = false;
+  }
+  function hideReloadToast() {
+    const t = $('#reloadToast');
+    if (t) t.hidden = true;
+  }
+  function showReloadBanner() {
+    const b = $('#reloadBanner');
+    if (b) b.hidden = false;
+  }
+  function hideReloadBanner() {
+    const b = $('#reloadBanner');
+    if (b) b.hidden = true;
+  }
+
+  // Threshold: how far the user can scroll before we switch from silent-
+  // reload to toast-prompt behavior. 50px is generous enough that a tiny
+  // accidental scroll doesn't trigger the toast, while still kicking in
+  // as soon as the user has actually moved into the doc.
+  const SCROLL_TOP_THRESHOLD = 50;
+
+  // Debounce file-changed events; multiple writes during a save (esp.
+  // for atomic temp+rename patterns from VS Code / Word / Vim) collapse
+  // into one reload after the 200ms quiet period.
+  let reloadDebounceTimer = null;
+  function scheduleAutoReload() {
+    if (reloadDebounceTimer) clearTimeout(reloadDebounceTimer);
+    reloadDebounceTimer = setTimeout(async () => {
+      reloadDebounceTimer = null;
+      if (!STATE.path) return;
+      // Verify the file still exists — atomic-save patterns drop+create
+      // within ~ms, so by the time the debounce fires, the rename has
+      // landed and the path is back. Deletes leave the path missing.
+      const exists = await invoke('file_exists', { path: STATE.path }).catch(() => false);
+      if (!exists) { showReloadBanner(); return; }
+      hideReloadBanner();
+      // Smart silent-vs-toast: at the top of the doc → silent reload;
+      // scrolled in → non-modal toast so user picks when to update.
+      if (content.scrollTop <= SCROLL_TOP_THRESHOLD) {
+        reloadCurrent();
+      } else {
+        showReloadToast();
+      }
+    }, 200);
   }
   function showError(message) {
     empty.hidden = true;
@@ -672,6 +824,13 @@ ${bodyHtml}
 
   $('#btnOpen').addEventListener('click', openFile);
   $('#btnOpenEmpty').addEventListener('click', openFile);
+  $('#btnRefresh').addEventListener('click', () => reloadCurrent());
+  $('#reloadToastBtn').addEventListener('click', () => reloadCurrent());
+  $('#reloadBannerClose').addEventListener('click', hideReloadBanner);
+
+  // Listen for file-change events from Rust's notify watcher
+  listen('file-changed', () => scheduleAutoReload()).catch((err) =>
+    console.warn('listen(file-changed) failed:', err));
 
   // ── Drag-drop ────────────────────────────────────────────────
   getCurrentWebview().onDragDropEvent((event) => {
@@ -694,6 +853,7 @@ ${bodyHtml}
     else if (ctrl && e.key === '\\')  { e.preventDefault(); setToc(!tocOpen); }
     else if (ctrl && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
     else if (ctrl && e.key.toLowerCase() === 'p') { e.preventDefault(); exportPdf(); }
+    else if (!ctrl && e.key === 'F5')             { e.preventDefault(); reloadCurrent(); }
     else if (!ctrl && (e.key === 'j' || e.key === 'k')
              && document.activeElement.tagName !== 'INPUT') {
       content.scrollBy({ top: e.key === 'j' ? 320 : -320, behavior: 'smooth' });
